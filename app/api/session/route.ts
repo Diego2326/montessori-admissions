@@ -7,7 +7,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as { email?: string; password?: string } | null;
   if (!body?.email || !body?.password) return NextResponse.json({ error: "Ingresa correo y contraseña" }, { status: 400 });
   try {
-    const response = await fetch(`${base}/login`, {
+    const response = await fetch(`${base}/auth/login`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: body.email, password: body.password }), cache: "no-store",
     });
