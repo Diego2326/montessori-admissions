@@ -24,6 +24,6 @@ export function LoginForm() {
     <label>Correo electrónico<input type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="tu.correo@montessori.edu.gt" /></label>
     <label>Contraseña<input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Tu contraseña" /></label>
     {error && <p className="login-error" role="alert">{error}</p>}
-    <button type="submit" disabled={busy}>{busy ? "Ingresando..." : "Ingresar a inscripciones"}</button>
+    <button type="submit" disabled={busy}>{busy ? "Ingresando..." : "Ingresar"}</button>
   </form>;
 }
