@@ -1,22 +1,19 @@
 # Montessori Admissions
 
-Frontend separado para el proceso de inscripciones 2027 del Colegio Bilingüe Montessori.
-El código se organiza por estaciones (`app/`), componentes (`components/`),
-funciones de negocio (`lib/admissions/`) y pantallas (`features/`).
+Aplicación operativa del ciclo 2027. Incluye inscripciones, contabilidad, libros y uniformes.
 
-La pantalla inicial lee los alumnos activos, sus grados 2026 y las familias
-migradas mediante la API del backend del colegio. Propone el grado 2027 sin modificar los registros. Los
-alumnos de 5.º Bachillerato quedan identificados como egresados. Caja, libros y
-uniformes tienen rutas propias para el desarrollo de sus flujos.
+- **Inscripciones:** alumnos de promoción y altas nuevas, datos familiares, grado, cuotas y contrato.
+- **Contabilidad:** cargos, pagos, saldos y recibos imprimibles.
+- **Libros y uniformes:** catálogo, stock, pedidos vinculados a cargos y entregas tras el pago.
+- **Actualizaciones:** WebSocket entre estaciones; una actualización periódica cada 45 segundos cubre desconexiones y varias instancias del backend.
 
-## Desarrollo local
+La interfaz usa un tema oscuro fijo, con componentes y navegación inspirados en Montessori Teacher y Student. El código se divide entre rutas (`app/`), pantallas (`features/`), componentes compartidos y acceso a la API (`lib/`).
 
-1. Copiar `.env.example` a `.env.local` para usar el backend local. Sin esa
-   variable, el servidor del frontend usa la API del colegio en Cloud Run:
-   `https://notas-api-625997821641.northamerica-south1.run.app`.
-2. Ejecutar el backend del colegio con la migración V70 aplicada.
-3. Ejecutar `npm install` y `npm run dev`.
+## Desarrollo
 
-El frontend usa el inicio de sesión del backend y guarda el token en una cookie
-HTTP-only. Nunca se conecta directamente a Neon. Las estaciones restantes aún
-requieren permisos y flujos propios antes de publicarse.
+1. Copiar `.env.example` a `.env.local`. La dirección incluida apunta a la API de Google Cloud; cámbiala si necesitas un backend local.
+2. Ejecutar `npm install` y `npm run dev`.
+
+El backend de Cloud Run aplica la migración `V75` al iniciar la nueva revisión.
+
+El inicio de sesión guarda el token en una cookie HTTP-only. Las operaciones se envían a la API mediante rutas del servidor; el navegador solo recibe un ticket temporal para WebSocket.

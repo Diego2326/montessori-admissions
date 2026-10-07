@@ -1,0 +1,14 @@
+export type Product = { id: number; station: string; sku: string; name: string; gradeId: number | null; gradeName: string | null; size: string | null; unitPrice: string; stockQuantity: number; active: boolean };
+export type OrderItem = { id: number; productId: number; name: string; sku: string; size: string | null; quantity: number; deliveredQuantity: number; unitPrice: string; subtotal: string };
+export type Order = { id: number; station: string; studentId: number; studentName: string; schoolYearId: number | null; chargeId: number; chargeStatus: string; balance: string; status: string; total: string; notes: string | null; createdAt: string; items: OrderItem[] };
+export type StockMovement = { id: number; productId: number; quantityDelta: number; balanceAfter: number; reason: string; createdAt: string };
+export type SchoolYear = { id: number; year: number; active: boolean };
+export type Grade = { id: number; name: string };
+export type Student = { id: number; firstName: string; lastName: string };
+export type Bootstrap = { schoolYears: SchoolYear[]; gradeLevels: Grade[]; students: Student[] };
+export type Enrollment = { id: number; studentId: number; studentFirstName: string | null; studentLastName: string | null; schoolYearId: number; schoolYear: number | null; gradeId: number; gradeName: string | null; section: string | null; status: string; profile: EnrollmentProfile | null };
+export type EnrollmentProfile = { familyName?: string | null; birthDate?: string | null; studentDpi?: string | null; address?: string | null; emergencyPhone?: string | null; motherName?: string | null; motherPhone?: string | null; motherEmail?: string | null; fatherName?: string | null; fatherPhone?: string | null; representativeName?: string | null; representativeMobilePhone?: string | null; representativeDocument?: string | null; enrollmentFee?: string | null; monthlyFee?: string | null; otherNotes?: string | null };
+export type Charge = { id: number; studentId: number; studentName: string | null; description: string; amount: string; paidAmount: string; balance: string; dueDate: string | null; status: string; source: string };
+export type Payment = { id: number; studentId: number | null; studentName: string | null; amount: string; paidAt: string; method: string; status: string; externalReference: string | null; notes: string | null };
+export type FinanceDashboard = { pendingTotal: string; overdueTotal: string; collectedThisMonth: string; pendingCharges: number; overdueCharges: number; pendingReconciliations: number };
+export const money = (value: string | number) => `Q ${Number(value).toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
