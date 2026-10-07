@@ -6,7 +6,7 @@ Estado: especificación acordada para rediseñar `montessori-admissions`. El fro
 
 `montessori-admissions` es la herramienta del personal que atiende a las familias, inscribe alumnos, prepara libros y uniformes, cobra y entrega. Las cuatro estaciones comparten el mismo expediente del alumno y el mismo ciclo escolar. La configuración de catálogos, paquetes por grado, precios, recepción y ajustes de inventario, permisos, conciliación y reportes generales pertenecen a `montessori-admin`.
 
-La inscripción debe quedar registrada antes de generar cualquier pedido. Luego, Inscripciones puede originar pedidos de Libros y Uniformes. Cada estación también puede crear y editar pedidos de alumnos ya inscritos. Caja cobra la totalidad de los cargos pendientes en una operación: no hay abonos. La preparación puede empezar antes del pago; la entrega requiere que el pedido esté pagado. Un artículo pagado puede continuar pendiente de entrega.
+La inscripción debe quedar registrada antes de generar cualquier pedido. Luego, Inscripciones puede originar pedidos de Libros y Uniformes. Cada estación también puede crear y editar pedidos de alumnos ya inscritos. Caja cobra la totalidad de los cargos incluidos en cada operación: no hay abonos. Cuando hay hermanos, el operador puede cobrar juntos los cargos de varios alumnos y emitir un solo recibo, o hacer cobros y recibos separados por alumno. Cada cargo queda atribuido a su alumno incluso en un recibo familiar. La preparación puede empezar antes del pago; la entrega requiere que el pedido esté pagado. Un artículo pagado puede continuar pendiente de entrega.
 
 ## Recorrido de una familia
 
@@ -14,7 +14,7 @@ La inscripción debe quedar registrada antes de generar cualquier pedido. Luego,
 2. Completa los datos del alumno, grado, padres, representante, emergencia, cuotas y contrato. Guarda avances y marca lo que falte. Confirma la inscripción.
 3. En la misma atención puede añadir el paquete de libros sugerido para el grado y seleccionar prendas, tallas y cantidades de uniformes. Se crean órdenes y cargos asociados al alumno.
 4. Libros y Uniformes reciben las órdenes automáticamente. Sus operadores pueden crear otras órdenes o editar productos, tallas y cantidades de sus propios pedidos antes del cobro. Preparan lo disponible y marcan faltantes por renglón.
-5. Caja ve todos los cargos pendientes de la atención, su origen y el total vigente. Confirma un pago completo y genera un recibo. Si una estación cambió una orden durante el cobro, Caja debe revisar el total nuevo antes de confirmar.
+5. Caja ve los cargos pendientes agrupados por alumno y origen. Si hay hermanos, ofrece **cobrar juntos** o **cobrar por alumno**. Confirma el total de los alumnos seleccionados en una operación y genera un recibo; los cargos de alumnos no seleccionados siguen pendientes. Si una estación cambió una orden durante el cobro, Caja debe revisar el total nuevo antes de confirmar.
 6. Las estaciones reciben la confirmación de pago y registran la entrega por artículo y cantidad. Los faltantes continúan visibles como deuda de entrega hasta resolverse.
 7. Las compras posteriores de un alumno inscrito empiezan en Libros o Uniformes y generan un nuevo cargo pendiente para Caja.
 
@@ -23,7 +23,7 @@ La inscripción debe quedar registrada antes de generar cualquier pedido. Luego,
 - **Buscar / Inscribir**: búsqueda rápida por alumno, familia o código; expedientes recientes; formulario por pasos; revisión final; contrato y firmas según el flujo existente. Tras confirmar inscripción, selección opcional de libros y uniformes.
 - **Libros**: cola de pedidos nuevos, en preparación, listos y con faltantes. Al abrir un pedido: alumno, grado, paquete sugerido, artículos y cantidades, existencias, notas, preparación y entrega. Acción para crear pedido adicional de alumno inscrito.
 - **Uniformes**: cola equivalente; selección libre de prendas y tallas, sin paquete obligatorio. Acción para crear pedido adicional de alumno inscrito.
-- **Caja**: cola de cuentas pendientes; desglose de inscripción, libros y uniformes; total vigente; método y referencia de pago; confirmación única; recibo, consulta y reimpresión. No contiene configuración financiera.
+- **Caja**: cola de cuentas pendientes; desglose por alumno de inscripción, libros y uniformes; selector táctil de hermanos para cobro conjunto o individual; total vigente; método y referencia de pago; confirmación única; recibo, consulta y reimpresión. No contiene configuración financiera.
 - **Pendientes de entrega**: vista filtrable de pedidos pagados con artículos aún no entregados, accesible desde las estaciones correspondientes.
 
 La navegación debe estar organizada por la tarea del operador, no por tablas administrativas. Cada pantalla tendrá acciones primarias visibles y estados legibles sin abrir otras páginas.
@@ -34,7 +34,7 @@ La inscripción, el cobro, la preparación y la entrega son dimensiones separada
 
 - Inscripción: borrador, completa, cancelada o corregida.
 - Orden: activa o anulada; revisión de importe si cambia antes del pago.
-- Cobro: pendiente o pagado. Caja no registra pagos parciales.
+- Cobro: pendiente o pagado **por cargo y por pedido**. Caja no registra abonos. Un hermano puede estar pagado y otro pendiente; un recibo conjunto puede liquidar cargos de varios alumnos.
 - Preparación por artículo: sin iniciar, preparando, preparado o faltante.
 - Entrega por artículo: cantidad entregada y cantidad pendiente. El pedido puede quedar parcialmente entregado después de pagarse.
 
@@ -46,7 +46,7 @@ La anulación de una orden sin pago libera reservas. Una orden pagada requiere u
 
 ## Recibo y futura factura
 
-El primer alcance emite únicamente un recibo interno con número, fecha, alumno/familia, renglones, total, método y referencia de pago. Se guarda una copia inmutable de los importes y conceptos al cobrar para que la reimpresión no cambie si luego se editan catálogos. La emisión de factura queda preparada mediante un tipo de documento y referencia al pago, sin crear todavía integración fiscal ni mostrar controles de facturación al staff.
+El primer alcance emite únicamente un recibo interno con número, fecha, familia, alumnos incluidos, renglones atribuidos a cada alumno, total, método y referencia de pago. Se guarda una copia inmutable de los importes y conceptos al cobrar para que la reimpresión no cambie si luego se editan catálogos. La emisión de factura queda preparada mediante un tipo de documento y referencia al pago, sin crear todavía integración fiscal ni mostrar controles de facturación al staff.
 
 ## Uso táctil
 
@@ -64,7 +64,9 @@ Cambios de inscripción, orden, importe, pago, preparación y entrega deben lleg
 4. Uniformes cambia la talla antes del cobro; Caja recibe el total actualizado y no cobra un importe anterior.
 5. Dos operadores modifican el mismo pedido; el sistema detecta la versión anterior y evita sobrescribir cambios o vender las mismas existencias dos veces.
 6. Se reimprime un recibo después de cambiar el precio de un producto en Admin; el recibo conserva el importe cobrado.
+7. Una familia con dos hermanos elige un recibo conjunto: Caja liquida todos los cargos seleccionados y el comprobante desglosa cada alumno.
+8. La misma familia elige recibos separados: Caja cobra al primer alumno, mientras el segundo conserva sus cargos pendientes hasta un cobro independiente.
 
 ## Trabajo técnico pendiente
 
-El backend V75 ya incorporó productos, stock y órdenes vinculadas a cargos, pero no representa preparación, faltantes prometidos, modificaciones completas de órdenes, recibos inmutables ni eventos WebSocket entre instancias. El frontend actual usa pantallas administrativas. Ambos deben adaptarse a este flujo; la PR del frontend permanece sin integrar. Antes de implementar se debe revisar el estado real del despliegue de Cloud Run, que no estaba confirmado en la última comprobación.
+El backend V75 ya incorporó productos, stock y órdenes vinculadas a cargos, pero no representa preparación, faltantes prometidos, modificaciones completas de órdenes, recibos inmutables ni eventos WebSocket entre instancias. La API de pagos vigente está centrada en un solo `studentId`; el cobro conjunto de hermanos requiere un pago que pueda distribuirse entre cargos de varios alumnos y un recibo que conserve ese desglose. El frontend actual usa pantallas administrativas. Ambos deben adaptarse a este flujo; la PR del frontend permanece sin integrar. Antes de implementar se debe revisar el estado real del despliegue de Cloud Run, que no estaba confirmado en la última comprobación.
