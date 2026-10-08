@@ -12,6 +12,7 @@ import type {
 } from "@/lib/operations/types";
 import { SignaturePad } from "./SignaturePad";
 import { EnrollmentExtras } from "./EnrollmentExtras";
+import { DatePartsField } from "./DatePartsField";
 
 type Props = {
   candidate: AdmissionCandidate | null;
@@ -140,6 +141,19 @@ export function EnrollmentWizard({
     );
   }, [profile.birthDate]);
   function field({ key, label, type = "text", placeholder }: Field) {
+    if (type === "date") {
+      const currentYear = new Date().getFullYear();
+      return (
+        <DatePartsField
+          key={`${key}:${profile[key] ?? ""}`}
+          label={label}
+          value={typeof profile[key] === "string" ? profile[key] as string : null}
+          minYear={key === "birthDate" ? 1900 : 2000}
+          maxYear={key === "birthDate" ? currentYear : currentYear + 10}
+          onChange={(value) => setProfile((current) => ({ ...current, [key]: value }))}
+        />
+      );
+    }
     return (
       <label className="field-label" key={key}>
         {label}

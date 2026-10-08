@@ -63,6 +63,31 @@
 .form-grid-full {
   grid-column: 1/-1;
 }
+.date-parts {
+  display: grid;
+  grid-template-columns: minmax(78px, 1fr) minmax(86px, 1.15fr) minmax(62px, .7fr);
+  gap: 7px;
+  min-width: 0;
+}
+.date-parts label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.date-parts select {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 48px;
+  min-width: 0;
+  padding: 10px 22px 10px 8px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%23aab1c5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  font-size: 12px;
+}
 .form-subsection {
   display: grid;
   gap: 12px;
