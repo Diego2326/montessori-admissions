@@ -18,6 +18,8 @@ export type EnrollmentProfile = Record<
   string,
   string | number | null | undefined
 >;
+export type FamilySummary = { id: number; name: string; reviewStatus: string };
+export type FamilyIntake = FamilySummary & { profile: EnrollmentProfile };
 export type LegacyContractDetails = {
   contractId: number;
   representativeFirstName: string;

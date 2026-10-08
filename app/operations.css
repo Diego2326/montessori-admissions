@@ -10,6 +10,39 @@
   grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
   gap: 13px;
 }
+.family-card-grid,
+.family-children,
+.family-intake { display: grid; gap: 13px; }
+.family-card-grid { grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); }
+.family-unassigned-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+.count-badge { display: inline-grid; place-items: center; min-width: 30px; height: 30px; padding: 0 8px; border-radius: 9px; background: #594a3a; color: #ffe0a6; font-size: 13px; vertical-align: middle; }
+.family-card,
+.family-child {
+  width: 100%; min-height: 88px; display: flex; align-items: center; gap: 14px;
+  padding: 16px; border: 1px solid var(--border); border-radius: 18px;
+  background: var(--surface); color: var(--text); text-align: left;
+}
+.family-card:hover,
+.family-child:hover { border-color: var(--primary); }
+.family-card-copy,
+.family-child > span:first-child { display: grid; gap: 4px; flex: 1; min-width: 0; }
+.family-card-copy strong,
+.family-child strong { font-size: 15px; }
+.family-card-copy small,
+.family-card-copy em,
+.family-child small { overflow: hidden; color: var(--muted); font-size: 12px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.family-card > svg,
+.family-child > svg { flex: none; color: var(--primary); }
+.family-intake { gap: 20px; }
+.family-panel { display: grid; gap: 18px; padding: 24px; border: 1px solid var(--border); border-radius: 22px; background: var(--surface); }
+.family-panel h4 { margin: 4px 0 -6px; font-size: 15px; }
+.family-panel > .button { justify-self: start; }
+.family-child { min-height: 74px; }
+.family-attach { display: flex; align-items: end; gap: 12px; padding-top: 18px; border-top: 1px solid var(--border); }
+.family-attach .field-label { flex: 1; }
+.family-create-modal { width: min(490px, 100%); }
+.family-create-content { display: grid; gap: 20px; padding: 24px; }
+.family-create-content .button { justify-self: end; }
 .contract-archive-card {
   display: grid;
   gap: 10px;
@@ -866,6 +899,13 @@
   font-size: 12px;
 }
 @media (max-width: 700px) {
+  .family-card-grid { grid-template-columns: 1fr; }
+  .family-unassigned-list { grid-template-columns: 1fr; }
+  .family-panel { padding: 18px; }
+  .family-panel .section-heading { align-items: stretch; flex-direction: column; }
+  .family-panel .section-heading .button { width: 100%; }
+  .family-attach { align-items: stretch; flex-direction: column; }
+  .family-card .status-pill { display: none; }
   .student-grid,
   .order-grid,
   .account-grid {

@@ -17,6 +17,7 @@ type Props = {
   gradeId: number;
   schoolYearId: number;
   onDone: () => void;
+  doneLabel?: string;
 };
 export function EnrollmentExtras({
   studentId,
@@ -24,6 +25,7 @@ export function EnrollmentExtras({
   gradeId,
   schoolYearId,
   onDone,
+  doneLabel,
 }: Props) {
   const [books, setBooks] = useState<Product[]>([]);
   const [uniforms, setUniforms] = useState<Product[]>([]);
@@ -267,8 +269,8 @@ export function EnrollmentExtras({
           {busy
             ? "Enviando…"
             : bookSelected || selectedUniforms.length
-              ? "Enviar órdenes y terminar"
-              : "Terminar sin pedidos"}
+              ? doneLabel ? "Enviar órdenes y volver" : "Enviar órdenes y terminar"
+              : doneLabel || "Terminar sin pedidos"}
           <AppIcon name="arrow" size={18} />
         </button>
       </footer>

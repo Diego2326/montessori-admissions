@@ -16,6 +16,9 @@ import { DatePartsField } from "./DatePartsField";
 
 type Props = {
   candidate: AdmissionCandidate | null;
+  familyId?: number;
+  familyName?: string;
+  sharedProfile?: EnrollmentProfile;
   bootstrap: Bootstrap | null;
   enrollment: Enrollment | null;
   onClose: () => void;
@@ -56,9 +59,11 @@ const representativeFields: Field[] = [
     type: "tel",
   },
 ];
-const steps = ["Alumno", "Familia", "Contrato", "Pedidos"];
 export function EnrollmentWizard({
   candidate,
+  familyId,
+  familyName,
+  sharedProfile,
   bootstrap,
   enrollment,
   onClose,
@@ -82,9 +87,11 @@ export function EnrollmentWizard({
   );
   const [section, setSection] = useState(enrollment?.section ?? "");
   const [profile, setProfile] = useState<EnrollmentProfile>(
-    enrollment?.profile ?? {
-      familyName: candidate?.familyName,
+    {
+      ...sharedProfile,
+      familyName: familyName ?? candidate?.familyName,
       representativeName: candidate?.representativeName,
+      ...enrollment?.profile,
     },
   );
   const [busy, setBusy] = useState(false);
@@ -109,6 +116,7 @@ export function EnrollmentWizard({
         } : {};
         delete imported.contractId;
         setProfile((current) => ({
+            ...sharedProfile,
             ...imported,
             ...Object.fromEntries(Object.entries(previous?.profile ?? {}).filter(([, value]) => value != null && value !== "")),
             ...Object.fromEntries(
@@ -122,7 +130,7 @@ export function EnrollmentWizard({
     return () => {
       active = false;
     };
-  }, [candidate, enrollment]);
+  }, [candidate, enrollment, sharedProfile]);
   const fullName = `${firstName} ${lastName}`.trim();
   const age = useMemo(() => {
     const birth = profile.birthDate;
@@ -182,7 +190,7 @@ export function EnrollmentWizard({
       setError("Completa nombre, apellido y grado para continuar.");
       return;
     }
-    setStep((current) => Math.min(2, current + 1));
+    setStep((current) => current === 0 && familyId ? 2 : Math.min(2, current + 1));
   }
   async function saveEnrollment() {
     if (!year) {
@@ -205,6 +213,7 @@ export function EnrollmentWizard({
         status: "ACTIVO",
         profile: {
           ...profile,
+          familyName: familyName ?? profile.familyName,
           representativeName: [profile.representativeFirstName, profile.representativeLastName].filter(Boolean).join(" ").trim() || profile.representativeName || null,
         },
       };
@@ -213,6 +222,7 @@ export function EnrollmentWizard({
         : await save<Enrollment>("enrollments", {
             ...body,
             schoolYearId: year.id,
+            ...(familyId ? { familyId } : {}),
             ...(candidate ? { studentId: candidate.id } : {}),
           });
       setSaved(result);
@@ -250,7 +260,7 @@ export function EnrollmentWizard({
             <p>
               {candidate?.currentGrade
                 ? `${candidate.currentGrade} → ${candidate.proposedGrade || "Grado a definir"}`
-                : "Completa el expediente paso a paso"}
+                : familyName || "Completa el expediente paso a paso"}
             </p>
           </div>
           <button className="icon-button" onClick={onClose} aria-label="Cerrar">
@@ -258,7 +268,7 @@ export function EnrollmentWizard({
           </button>
         </header>
         <nav className="wizard-steps" aria-label="Pasos de inscripción">
-          {steps.map((name, index) => (
+          {(familyId ? [[0, "Alumno"], [2, "Contrato"], [3, "Pedidos"]] as const : [[0, "Alumno"], [1, "Familia"], [2, "Contrato"], [3, "Pedidos"]] as const).map(([index, name]) => (
             <span
               key={name}
               className={
@@ -280,6 +290,7 @@ export function EnrollmentWizard({
               gradeId={gradeId}
               schoolYearId={year!.id}
               onDone={onClose}
+              doneLabel={familyId ? "Volver a la familia" : undefined}
             />
           </div>
         ) : (
@@ -323,7 +334,7 @@ export function EnrollmentWizard({
                       <strong>{age == null ? "—" : `${age} años`}</strong>
                     </div>
                     {field({ key: "studentDpi", label: "DPI del alumno" })}
-                    {field({ key: "familyName", label: "Nombre de familia" })}
+                    {!familyId && field({ key: "familyName", label: "Nombre de familia" })}
                     <label className="field-label">
                       Grado 2027 *
                       <select
@@ -354,7 +365,7 @@ export function EnrollmentWizard({
                   </div>
                 </div>
               )}
-              {step === 1 && (
+              {step === 1 && !familyId && (
                 <div className="wizard-content">
                   <div className="form-intro">
                     <span className="intro-icon coral">
@@ -514,7 +525,7 @@ export function EnrollmentWizard({
             <footer className="modal-actions wizard-actions">
               <button
                 className="button button-soft"
-                onClick={() => (step ? setStep(step - 1) : onClose())}
+                onClick={() => (step ? setStep(step === 2 && familyId ? 0 : step - 1) : onClose())}
               >
                 {step ? "Atrás" : "Cancelar"}
               </button>
