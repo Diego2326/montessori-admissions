@@ -34,6 +34,16 @@ export type LegacyContractDetails = {
   representativeMobilePhone: string | null;
   studyPlan: string | null;
 };
+export type LegacyContractAssignment = {
+  contractId: number;
+  contractDate: string;
+  sourceStudentId: number;
+  studentName: string;
+  sourceRepresentativeId: number;
+  representativeName: string;
+  matchedStudentId: number | null;
+  matchStatus: string;
+};
 export type Enrollment = {
   id: number;
   studentId: number;

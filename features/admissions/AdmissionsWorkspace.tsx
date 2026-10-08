@@ -9,10 +9,11 @@ import type {
   AdmissionCandidate,
   AdmissionsOverview,
 } from "@/lib/admissions/types";
-import type { Bootstrap, Enrollment } from "@/lib/operations/types";
+import type { Bootstrap, Enrollment, LegacyContractAssignment } from "@/lib/operations/types";
 import { EnrollmentWizard } from "./EnrollmentWizard";
+import { LegacyContractsPanel } from "./LegacyContractsPanel";
 
-type Filter = "all" | "pending" | "enrolled";
+type Filter = "all" | "pending" | "enrolled" | "contracts";
 export function AdmissionsWorkspace({
   overview,
 }: {
@@ -20,6 +21,7 @@ export function AdmissionsWorkspace({
 }) {
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [contracts, setContracts] = useState<LegacyContractAssignment[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("pending");
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -36,6 +38,7 @@ export function AdmissionsWorkspace({
           ? await operation<Enrollment[]>(`enrollments?schoolYearId=${year.id}`)
           : [],
       );
+      setContracts(await operation<LegacyContractAssignment[]>("admission-workflow/legacy-contracts"));
       setError("");
     } catch (cause) {
       setError(
@@ -163,7 +166,7 @@ export function AdmissionsWorkspace({
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Nombre, familia o grado"
+              placeholder={filter === "contracts" ? "Alumno, representante o contrato" : "Nombre, familia o grado"}
             />
           </label>
         </div>
@@ -192,6 +195,9 @@ export function AdmissionsWorkspace({
           >
             Todos <span>{allCandidates.length}</span>
           </button>
+          <button role="tab" aria-selected={filter === "contracts"} onClick={() => setFilter("contracts")}>
+            Contratos <span>{contracts.length}</span>
+          </button>
         </div>
         {overview.connection !== "connected" && (
           <p className="alert-error" role="alert">
@@ -204,7 +210,17 @@ export function AdmissionsWorkspace({
             {error}
           </p>
         )}
-        <div className="student-grid">
+        {filter === "contracts" ? (
+          <LegacyContractsPanel
+            contracts={contracts}
+            search={search}
+            openableStudentIds={new Set(allCandidates.map((item) => item.id))}
+            onOpenStudent={(id) => {
+              const candidate = allCandidates.find((item) => item.id === id);
+              if (candidate) open(candidate);
+            }}
+          />
+        ) : <div className="student-grid">
           {visible.map((candidate) => {
             const enrolled = enrolledIds.has(candidate.id);
             return (
@@ -242,8 +258,8 @@ export function AdmissionsWorkspace({
               </button>
             );
           })}
-        </div>
-        {visible.length === 0 && (
+        </div>}
+        {filter !== "contracts" && visible.length === 0 && (
           <div className="empty-state">
             <span>
               <AppIcon name="search" size={34} />
