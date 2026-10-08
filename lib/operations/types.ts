@@ -18,6 +18,22 @@ export type EnrollmentProfile = Record<
   string,
   string | number | null | undefined
 >;
+export type LegacyContractDetails = {
+  contractId: number;
+  representativeFirstName: string;
+  representativeLastName: string;
+  representativeAge: number | null;
+  representativeCivilStatus: string | null;
+  representativeNationality: string | null;
+  representativeOccupation: string | null;
+  representativeDocumentType: string | null;
+  representativeDocument: string | null;
+  representativeResidence: string | null;
+  representativeHomePhone: string | null;
+  representativeOfficePhone: string | null;
+  representativeMobilePhone: string | null;
+  studyPlan: string | null;
+};
 export type Enrollment = {
   id: number;
   studentId: number;

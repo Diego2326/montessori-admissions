@@ -8,6 +8,7 @@ import type {
   Bootstrap,
   Enrollment,
   EnrollmentProfile,
+  LegacyContractDetails,
 } from "@/lib/operations/types";
 import { SignaturePad } from "./SignaturePad";
 import { EnrollmentExtras } from "./EnrollmentExtras";
@@ -38,8 +39,10 @@ const fatherFields: Field[] = [
   { key: "fatherDpi", label: "DPI" },
 ];
 const representativeFields: Field[] = [
-  { key: "representativeName", label: "Nombre completo" },
-  { key: "representativeDocument", label: "DPI o pasaporte" },
+  { key: "representativeFirstName", label: "Nombres" },
+  { key: "representativeLastName", label: "Apellidos" },
+  { key: "representativeDocument", label: "Número de documento" },
+  { key: "representativeResidence", label: "Dirección de residencia" },
   { key: "representativeMobilePhone", label: "Celular", type: "tel" },
   { key: "representativeAge", label: "Edad", type: "number" },
   { key: "representativeCivilStatus", label: "Estado civil" },
@@ -89,15 +92,24 @@ export function EnrollmentWizard({
   useEffect(() => {
     if (!candidate || enrollment) return;
     let active = true;
-    void operation<Enrollment[]>(`students/${candidate.id}/enrollments`)
-      .then((rows) => {
+    void Promise.all([
+      operation<Enrollment[]>(`students/${candidate.id}/enrollments`).catch(() => []),
+      candidate.historicalContracts > 0
+        ? operation<LegacyContractDetails>(`admission-workflow/students/${candidate.id}/legacy-contract`).catch(() => null)
+        : Promise.resolve(null),
+    ]).then(([rows, legacy]) => {
         if (!active) return;
         const previous = rows
           .filter((item) => item.schoolYear !== 2027)
           .sort((a, b) => (b.schoolYear ?? 0) - (a.schoolYear ?? 0))[0];
-        if (previous?.profile)
-          setProfile((current) => ({
-            ...previous.profile,
+        const imported: EnrollmentProfile = legacy ? {
+          ...legacy,
+          representativeName: `${legacy.representativeFirstName} ${legacy.representativeLastName}`.trim(),
+        } : {};
+        delete imported.contractId;
+        setProfile((current) => ({
+            ...imported,
+            ...Object.fromEntries(Object.entries(previous?.profile ?? {}).filter(([, value]) => value != null && value !== "")),
             ...Object.fromEntries(
               Object.entries(current).filter(
                 ([, value]) => value != null && value !== "",
@@ -177,7 +189,10 @@ export function EnrollmentWizard({
         gradeId,
         section: section || null,
         status: "ACTIVO",
-        profile,
+        profile: {
+          ...profile,
+          representativeName: [profile.representativeFirstName, profile.representativeLastName].filter(Boolean).join(" ").trim() || profile.representativeName || null,
+        },
       };
       const result = saved
         ? await save<Enrollment>(`enrollments/${saved.id}`, body, "PUT")
@@ -397,6 +412,15 @@ export function EnrollmentWizard({
                         </select>
                       </label>
                       {representativeFields.map(field)}
+                      <label className="field-label">
+                        Tipo de documento
+                        <select value={String(profile.representativeDocumentType || "")} onChange={(event) => setProfile((current) => ({ ...current, representativeDocumentType: event.target.value }))}>
+                          <option value="">Seleccionar</option>
+                          <option value="DPI">DPI</option>
+                          <option value="PASAPORTE">Pasaporte</option>
+                          <option value="OTRO">Otro</option>
+                        </select>
+                      </label>
                     </div>
                   </section>
                   <section className="form-subsection">
@@ -405,7 +429,8 @@ export function EnrollmentWizard({
                       {[
                         { key: "educationLevel", label: "Nivel" },
                         { key: "career", label: "Carrera" },
-                        { key: "schedulePlan", label: "Jornada / plan" },
+                        { key: "schedulePlan", label: "Jornada" },
+                        { key: "studyPlan", label: "Plan de estudios" },
                         { key: "contractNumber", label: "Número de contrato" },
                         {
                           key: "contractDiacoResolution",
@@ -432,6 +457,11 @@ export function EnrollmentWizard({
                   <section className="form-subsection">
                     <h4>Firmas</h4>
                     <div className="signature-grid">
+                      <SignaturePad
+                        label="Firma del representante del contrato"
+                        value={String(profile.representativeSignatureBase64 || "")}
+                        onChange={(value) => setProfile((current) => ({ ...current, representativeSignatureBase64: value }))}
+                      />
                       <SignaturePad
                         label="Firma de madre"
                         value={String(profile.motherSignatureBase64 || "")}
