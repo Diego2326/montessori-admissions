@@ -1,6 +1,6 @@
 # Flujo operativo de inscripciones 2027
 
-Estado: especificación acordada para rediseñar `montessori-admissions`. El frontend de la PR #1 es un prototipo administrativo y debe sustituirse antes de integrarlo. Este documento no activa despliegues.
+Estado: flujo acordado e implementado en las ramas de Admissions y Backend. Pendiente de integración y despliegue.
 
 ## Propósito y límites
 
@@ -67,6 +67,8 @@ Cambios de inscripción, orden, importe, pago, preparación y entrega deben lleg
 7. Una familia con dos hermanos elige un recibo conjunto: Caja liquida todos los cargos seleccionados y el comprobante desglosa cada alumno.
 8. La misma familia elige recibos separados: Caja cobra al primer alumno, mientras el segundo conserva sus cargos pendientes hasta un cobro independiente.
 
-## Trabajo técnico pendiente
+## Estado técnico
 
-El backend V75 ya incorporó productos, stock y órdenes vinculadas a cargos, pero no representa preparación, faltantes prometidos, modificaciones completas de órdenes, recibos inmutables ni eventos WebSocket entre instancias. La API de pagos vigente está centrada en un solo `studentId`; el cobro conjunto de hermanos requiere un pago que pueda distribuirse entre cargos de varios alumnos y un recibo que conserve ese desglose. El frontend actual usa pantallas administrativas. Ambos deben adaptarse a este flujo; la PR del frontend permanece sin integrar. Antes de implementar se debe revisar el estado real del despliegue de Cloud Run, que no estaba confirmado en la última comprobación.
+La migración V76 y las pantallas de mostrador implementan los pedidos editables antes del cobro, reservas y faltantes, preparación y entrega parcial, cobro conjunto o separado de hermanos, recibos inmutables y eventos entre instancias. Los productos y ajustes de existencias se configuran con permisos de Admin.
+
+La corrección de importes o productos después del pago requiere todavía un flujo propio de autorización y nuevo comprobante en Caja. Hasta incorporarlo, la API bloquea la edición de una orden pagada. La integración visual de catálogos y paquetes en `montessori-admin` también queda pendiente. El servicio de Cloud Run aún no tiene estas rutas desplegadas; el acceso local de `gcloud` requiere renovar la autenticación.

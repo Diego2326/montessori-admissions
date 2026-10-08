@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { admissionsApiBase } from "@/lib/admissions/repository";
 
-const allowedRoots = new Set(["enrollments", "school-years", "admission-workflow", "admission-stations", "finance", "admissions"]);
+const allowedRoots = new Set(["enrollments", "school-years", "students", "admission-workflow", "admission-stations", "finance", "admissions", "admission-checkout"]);
 
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const token = (await cookies()).get("admissions_token")?.value;
