@@ -207,6 +207,14 @@ svg {
 .topbar strong {
   font-size: 18px;
 }
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.mobile-signout {
+  display: none;
+}
 .main-content {
   max-width: 1560px;
   margin: auto;
@@ -553,6 +561,19 @@ svg {
   }
 }
 @media (max-width: 700px) {
+  .mobile-signout {
+    display: block;
+  }
+  .mobile-signout .signout-button {
+    min-width: 48px;
+    min-height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+  }
   .workspace {
     display: block;
   }

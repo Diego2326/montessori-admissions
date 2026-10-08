@@ -72,7 +72,10 @@ export function WorkspaceShell({
               <span className="topbar-kicker">MONTESSORI ZACAPA</span>
               <strong>{current}</strong>
             </div>
-            <LiveIndicator />
+            <div className="topbar-actions">
+              <LiveIndicator />
+              <span className="mobile-signout"><SignOutButton /></span>
+            </div>
           </header>
           <main className="main-content">{children}</main>
         </div>
