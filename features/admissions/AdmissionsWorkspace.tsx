@@ -82,7 +82,8 @@ export function AdmissionsWorkspace({ overview }: { overview: AdmissionsOverview
     }));
     return [...candidates, ...newcomers];
   }, [candidates, enrollments]);
-  const enrolledIds = useMemo(() => new Set(enrollments.map((item) => item.studentId)), [enrollments]);
+  const enrollmentStatuses = useMemo(() => new Map(enrollments.map((item) => [item.studentId, item.status])), [enrollments]);
+  const enrolledIds = useMemo(() => new Set(enrollments.filter((item) => item.status === "ACTIVO").map((item) => item.studentId)), [enrollments]);
   const familyCards = useMemo(() => families.map((family) => {
     const children = allCandidates.filter((candidate) => candidate.familyId === family.id);
     const enrolled = children.filter((child) => enrolledIds.has(child.id)).length;
@@ -138,6 +139,7 @@ export function AdmissionsWorkspace({ overview }: { overview: AdmissionsOverview
 
   function openChild(candidate: AdmissionCandidate | null, profile: EnrollmentProfile) {
     const defaults = { ...profile };
+    for (const key of ["contractSignedAt", "representativeSignatureBase64", "motherSignatureBase64", "fatherSignatureBase64", "contractNumber", "enrollmentFee", "monthlyFee"]) delete defaults[key];
     if (candidate?.historicalContracts) {
       for (const key of Object.keys(defaults)) if (key.startsWith("representative")) delete defaults[key];
     }
@@ -167,7 +169,7 @@ export function AdmissionsWorkspace({ overview }: { overview: AdmissionsOverview
           family={selectedFamily}
           students={allCandidates.filter((candidate) => candidate.familyId === selectedFamily.id)}
           unassigned={unassigned}
-          enrolledIds={enrolledIds}
+          enrollmentStatuses={enrollmentStatuses}
           onBack={() => { setFamilyId(null); setFamilyDetail(null); }}
           onUpdated={setFamilyDetail}
           onOpenChild={openChild}
@@ -188,8 +190,14 @@ export function AdmissionsWorkspace({ overview }: { overview: AdmissionsOverview
           <div className="station-stats">
             <div><span className="stat-icon blue"><AppIcon name="users" /></span><span><small>Familias</small><strong>{families.length}</strong></span></div>
             <div><span className="stat-icon coral"><AppIcon name="clock" /></span><span><small>Por atender</small><strong>{pendingFamilies}</strong></span></div>
-            <div><span className="stat-icon mint"><AppIcon name="check" /></span><span><small>Alumnos inscritos</small><strong>{enrollments.length}</strong></span></div>
+            <div><span className="stat-icon mint"><AppIcon name="check" /></span><span><small>Alumnos inscritos</small><strong>{enrolledIds.size}</strong></span></div>
+            <div><span className="stat-icon coral"><AppIcon name="clock" /></span><span><small>Inscripciones pendientes</small><strong>{enrollments.filter((item) => item.status.startsWith("PENDIENTE_")).length}</strong></span></div>
           </div>
+          {bootstrap && !bootstrap.schoolYears.some((item) => item.year === 2027) && (
+            <p className="alert-error" role="alert">
+              El ciclo 2027 aún no está creado. Créalo en Admin → Inscripciones antes de confirmar inscripciones.
+            </p>
+          )}
           {unassigned.length > 0 && <section className="work-section">
             <div className="section-heading"><div><span className="eyebrow">PENDIENTES DE VINCULAR</span><h2>Alumnos sin familia <span className="count-badge">{unassigned.length}</span></h2></div>
               <label className="search-field queue-search"><AppIcon name="search" size={19} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar alumno o familia" /></label>

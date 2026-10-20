@@ -13,6 +13,12 @@ export type Bootstrap = {
   schoolYears: SchoolYear[];
   gradeLevels: Grade[];
   students: { id: number; firstName: string; lastName: string }[];
+  courseOfferings?: {
+    schoolYearId: number;
+    gradeId: number | null;
+    section: string | null;
+    active: boolean;
+  }[];
 };
 export type EnrollmentProfile = Record<
   string,

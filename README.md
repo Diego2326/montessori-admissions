@@ -1,5 +1,12 @@
 # Montessori Admissions
 
+## Seguimiento vigente
+
+El estado, las prioridades y la evidencia de validación se mantienen en
+[Avance de Admin, inscripciones y CMS](../montessori-backend/docs/estado-admin-inscripciones-cms.md)
+(enlace entre repositorios del workspace local). El contexto general está en
+`montessori-backend/AGENTS.md`. No considerar terminado un flujo solo porque compile.
+
 Aplicación de mostrador para el ciclo escolar 2027. Atiende cuatro estaciones: Inscripciones, Libros, Uniformes y Caja.
 
 ## Flujo
@@ -17,6 +24,6 @@ Las estaciones se actualizan por WebSocket; un refresco de respaldo ocurre cada 
 
 1. Copia `.env.example` a `.env.local` y configura la URL de la API.
 2. Ejecuta `npm install` y `npm run dev`.
-3. La API necesita la migración `V76__admission_staff_workflow.sql` de `montessori-backend`.
+3. Verifica las migraciones del worktree/entorno utilizado. En `montessori-backend-admissions` el flujo de estaciones está en `V83__admissions_station_sales.sql` y `V85__admission_staff_workflow.sql`. La numeración V75/V76 de documentos anteriores es histórica; contrastar siempre con el esquema real antes de integrar.
 
 El inicio de sesión guarda el token en una cookie HTTP-only. Las operaciones pasan por rutas del servidor; el navegador solo recibe un ticket temporal para WebSocket.

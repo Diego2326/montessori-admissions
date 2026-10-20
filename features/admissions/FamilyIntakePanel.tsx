@@ -6,12 +6,19 @@ import { AppIcon } from "@/components/AppIcon";
 import { save } from "@/lib/operations/client";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
 import type { EnrollmentProfile, FamilyIntake } from "@/lib/operations/types";
+import {
+  civilStatusOptions,
+  nationalityOptions,
+  optionsWithExistingValue,
+  representativeDocumentTypeOptions,
+  representativeTypeOptions,
+} from "./normalizedOptions";
 
 type Props = {
   family: FamilyIntake;
   students: AdmissionCandidate[];
   unassigned: AdmissionCandidate[];
-  enrolledIds: Set<number>;
+  enrollmentStatuses: Map<number, string>;
   onBack: () => void;
   onUpdated: (family: FamilyIntake) => void;
   onOpenChild: (candidate: AdmissionCandidate | null, profile: EnrollmentProfile) => void;
@@ -21,17 +28,19 @@ type Props = {
 const contactFields = [
   ["motherName", "Nombre de la madre"], ["motherPhone", "Celular de la madre"],
   ["motherEmail", "Correo de la madre"], ["motherDpi", "DPI de la madre"],
+  ["motherOccupation", "Ocupación de la madre"], ["motherWorkplace", "Lugar de trabajo de la madre"],
   ["fatherName", "Nombre del padre"], ["fatherPhone", "Celular del padre"],
   ["fatherHomePhone", "Teléfono de casa del padre"], ["fatherDpi", "DPI del padre"],
+  ["fatherOccupation", "Ocupación del padre"], ["fatherWorkplace", "Lugar de trabajo del padre"],
   ["emergencyContactName", "Contacto de emergencia"],
   ["emergencyContactPhone", "Celular de emergencia"],
-  ["emergencyPhone", "Teléfono alterno"],
+  ["emergencyPhone", "Teléfono alterno"], ["city", "Municipio o ciudad"],
+  ["otherContact", "Otro contacto"],
 ] as const;
 
 const representativeFields = [
   ["representativeFirstName", "Nombres"], ["representativeLastName", "Apellidos"],
-  ["representativeAge", "Edad"], ["representativeCivilStatus", "Estado civil"],
-  ["representativeNationality", "Nacionalidad"], ["representativeOccupation", "Profesión u oficio"],
+  ["representativeAge", "Edad"], ["representativeOccupation", "Profesión u oficio"],
   ["representativeDocument", "Número de documento"],
   ["representativeResidence", "Dirección de residencia"],
   ["representativeHomePhone", "Teléfono de casa"],
@@ -39,7 +48,7 @@ const representativeFields = [
   ["representativeMobilePhone", "Celular"],
 ] as const;
 
-export function FamilyIntakePanel({ family, students, unassigned, enrolledIds, onBack, onUpdated, onOpenChild, onAttachStudent }: Props) {
+export function FamilyIntakePanel({ family, students, unassigned, enrollmentStatuses, onBack, onUpdated, onOpenChild, onAttachStudent }: Props) {
   const [name, setName] = useState(family.name);
   const [profile, setProfile] = useState<EnrollmentProfile>(family.profile);
   const [busy, setBusy] = useState(false);
@@ -59,6 +68,21 @@ export function FamilyIntakePanel({ family, students, unassigned, enrolledIds, o
           type={key === "representativeAge" ? "number" : key.includes("Email") ? "email" : key.includes("Phone") ? "tel" : "text"}
           onChange={(event) => update(key, event.target.value)}
         />
+      </label>
+    );
+  }
+
+  function selectField(key: string, label: string, options: readonly (string | { value: string; label: string })[]) {
+    const currentValue = String(profile[key] ?? "");
+    return (
+      <label className="field-label" key={key}>
+        {label}
+        <select value={currentValue} onChange={(event) => update(key, event.target.value)}>
+          <option value="">Seleccionar</option>
+          {optionsWithExistingValue(options, currentValue).map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
       </label>
     );
   }
@@ -107,15 +131,19 @@ export function FamilyIntakePanel({ family, students, unassigned, enrolledIds, o
         <div className="form-grid">
           <label className="field-label">Parentesco
             <select value={String(profile.representativeType || "")} onChange={(event) => update("representativeType", event.target.value)}>
-              <option value="">Por confirmar</option><option value="MOTHER">Madre</option><option value="FATHER">Padre</option><option value="OTHER">Otro</option>
+              <option value="">Por confirmar</option>
+              {optionsWithExistingValue(representativeTypeOptions, profile.representativeType).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
           <label className="field-label">Tipo de documento
             <select value={String(profile.representativeDocumentType || "")} onChange={(event) => update("representativeDocumentType", event.target.value)}>
-              <option value="">Seleccionar</option><option value="DPI">DPI</option><option value="PASAPORTE">Pasaporte</option><option value="OTRO">Otro</option>
+              <option value="">Seleccionar</option>
+              {optionsWithExistingValue(representativeDocumentTypeOptions, profile.representativeDocumentType).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
           {representativeFields.map(([key, label]) => field(key, label))}
+          {selectField("representativeCivilStatus", "Estado civil", civilStatusOptions)}
+          {selectField("representativeNationality", "Nacionalidad", nationalityOptions)}
         </div>
         <h4>Contactos</h4>
         <div className="form-grid">{contactFields.map(([key, label]) => field(key, label))}</div>
@@ -136,8 +164,8 @@ export function FamilyIntakePanel({ family, students, unassigned, enrolledIds, o
           {students.map((child) => (
             <button className="family-child" type="button" key={child.id} disabled={busy} onClick={() => void openChild(child)}>
               <span><strong>{child.firstName} {child.lastName}</strong><small>{child.currentGrade || "Grado por definir"}</small></span>
-              <span className={`status-pill ${enrolledIds.has(child.id) ? "success" : "waiting"}`}>
-                {enrolledIds.has(child.id) ? "Inscrito" : "Por inscribir"}
+              <span className={`status-pill ${enrollmentStatuses.get(child.id) === "ACTIVO" ? "success" : "waiting"}`}>
+                {enrollmentStatuses.get(child.id) === "ACTIVO" ? "Inscrito" : enrollmentStatuses.get(child.id) === "PENDIENTE_PAGO" ? "Pendiente de pago" : enrollmentStatuses.get(child.id) === "PENDIENTE_FIRMA" ? "Pendiente de firma" : "Por inscribir"}
               </span>
               <AppIcon name="arrow" size={18} />
             </button>

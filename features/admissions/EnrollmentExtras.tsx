@@ -12,6 +12,10 @@ import {
 } from "@/lib/operations/types";
 
 type Props = {
+  enrollmentId: number;
+  onMarkSigned: () => void;
+  enrollmentStatus: string;
+  enrollmentFee: string;
   studentId: number;
   studentName: string;
   gradeId: number;
@@ -20,6 +24,10 @@ type Props = {
   doneLabel?: string;
 };
 export function EnrollmentExtras({
+  enrollmentId,
+  onMarkSigned,
+  enrollmentStatus,
+  enrollmentFee,
   studentId,
   studentName,
   gradeId,
@@ -148,13 +156,17 @@ export function EnrollmentExtras({
           <AppIcon name="check" size={28} />
         </span>
         <div>
-          <strong>{studentName} ya quedó inscrito</strong>
+          <strong>{enrollmentStatus === "ACTIVO" ? `${studentName} ya quedó inscrito` : enrollmentStatus === "PENDIENTE_PAGO" ? `${studentName}: pendiente de pago de inscripción` : `${studentName}: pendiente de firma del contrato`}</strong>
           <p>
-            Ahora puedes enviar pedidos a las estaciones. También pueden crearse
-            más tarde.
+            {enrollmentStatus === "ACTIVO" ? "Puedes enviar pedidos a las estaciones." : "El expediente está guardado. Imprime el contrato, recógelo firmado y registra su firma en el expediente. La inscripción quedará activa al completar también el pago."}
           </p>
         </div>
       </div>
+      <a className="button button-soft" href={`/api/operations/enrollments/${enrollmentId}/contract`} target="_blank" rel="noreferrer">Imprimir contrato</a>
+      {enrollmentStatus === "PENDIENTE_FIRMA" && <button className="button button-soft" type="button" onClick={onMarkSigned}>Registrar contrato físico firmado</button>}
+      {enrollmentStatus === "PENDIENTE_PAGO" && !(Number(enrollmentFee) > 0) && (
+        <p className="alert-error" role="alert">Falta definir la cuota de inscripción. Completa la tarifa del grado o el monto en el contrato para que Caja pueda cobrarla.</p>
+      )}
       <section className="extras-section">
         <div className="section-row">
           <div>

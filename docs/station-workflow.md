@@ -1,6 +1,8 @@
 # Flujo operativo de inscripciones 2027
 
-Estado: flujo acordado e implementado en las ramas de Admissions y Backend. Pendiente de integración y despliegue.
+Estado: flujo acordado y con implementación en las ramas de Admissions y Backend. Pendiente de validación integral, integración y despliegue.
+
+Seguimiento vigente (workspace local): [avance y pendientes](../../montessori-backend/docs/estado-admin-inscripciones-cms.md). La presencia de código no certifica los casos de aceptación.
 
 ## Propósito y límites
 
@@ -69,6 +71,13 @@ Cambios de inscripción, orden, importe, pago, preparación y entrega deben lleg
 
 ## Estado técnico
 
-La migración V76 y las pantallas de mostrador implementan los pedidos editables antes del cobro, reservas y faltantes, preparación y entrega parcial, cobro conjunto o separado de hermanos, recibos inmutables y eventos entre instancias. Los productos y ajustes de existencias se configuran con permisos de Admin.
+En el worktree actual `montessori-backend-admissions`, las migraciones V83/V85 y las pantallas de mostrador implementan los pedidos editables antes del cobro, reservas y faltantes, preparación y entrega parcial, cobro conjunto o separado de hermanos, recibos inmutables y eventos entre instancias. Los productos y ajustes de existencias se configuran con permisos de Admin.
 
-La corrección de importes o productos después del pago requiere todavía un flujo propio de autorización y nuevo comprobante en Caja. Hasta incorporarlo, la API bloquea la edición de una orden pagada. La integración visual de catálogos y paquetes en `montessori-admin` también queda pendiente. El servicio de Cloud Run aún no tiene estas rutas desplegadas; el acceso local de `gcloud` requiere renovar la autenticación.
+La corrección de importes o productos después del pago requiere todavía un flujo propio de autorización y nuevo comprobante en Caja. Hasta incorporarlo, la API bloquea la edición de una orden pagada. La integración visual de catálogos y paquetes en `montessori-admin` también queda pendiente. El despliegue integrado de este trabajo no se ha verificado. Cualquier referencia previa al estado de autenticación de `gcloud` debe comprobarse de nuevo al desplegar.
+
+El expediente de inscripción también guarda fecha de solicitud, municipio/ciudad,
+ocupación y lugar de trabajo de madre y padre, otro contacto y quién atendió.
+Las migraciones V87/V88 se aplicaron a la rama de producción de Neon el
+2026-10-20. El archivo histórico de inscripciones quedó en
+`admission_source_import_rows` con 467 filas pendientes de revisión; se conserva
+cada fila original y no se asignaron alumnos ni familias automáticamente.

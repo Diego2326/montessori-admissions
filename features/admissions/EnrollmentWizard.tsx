@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { operation, save } from "@/lib/operations/client";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
@@ -10,9 +10,19 @@ import type {
   EnrollmentProfile,
   LegacyContractDetails,
 } from "@/lib/operations/types";
-import { SignaturePad } from "./SignaturePad";
 import { EnrollmentExtras } from "./EnrollmentExtras";
 import { DatePartsField } from "./DatePartsField";
+import {
+  careerOptions,
+  civilStatusOptions,
+  educationLevelOptions,
+  nationalityOptions,
+  optionsWithExistingValue,
+  representativeDocumentTypeOptions,
+  representativeTypeOptions,
+  scheduleOptions,
+  studyPlanOptions,
+} from "./normalizedOptions";
 
 type Props = {
   candidate: AdmissionCandidate | null;
@@ -29,18 +39,23 @@ type Field = {
   label: string;
   type?: string;
   placeholder?: string;
+  options?: readonly (string | { value: string; label: string })[];
 };
 const motherFields: Field[] = [
   { key: "motherName", label: "Nombre completo" },
   { key: "motherPhone", label: "Celular", type: "tel" },
   { key: "motherEmail", label: "Correo", type: "email" },
   { key: "motherDpi", label: "DPI" },
+  { key: "motherOccupation", label: "Ocupación" },
+  { key: "motherWorkplace", label: "Lugar de trabajo" },
 ];
 const fatherFields: Field[] = [
   { key: "fatherName", label: "Nombre completo" },
   { key: "fatherPhone", label: "Celular", type: "tel" },
   { key: "fatherHomePhone", label: "Teléfono de casa", type: "tel" },
   { key: "fatherDpi", label: "DPI" },
+  { key: "fatherOccupation", label: "Ocupación" },
+  { key: "fatherWorkplace", label: "Lugar de trabajo" },
 ];
 const representativeFields: Field[] = [
   { key: "representativeFirstName", label: "Nombres" },
@@ -49,8 +64,8 @@ const representativeFields: Field[] = [
   { key: "representativeResidence", label: "Dirección de residencia" },
   { key: "representativeMobilePhone", label: "Celular", type: "tel" },
   { key: "representativeAge", label: "Edad", type: "number" },
-  { key: "representativeCivilStatus", label: "Estado civil" },
-  { key: "representativeNationality", label: "Nacionalidad" },
+  { key: "representativeCivilStatus", label: "Estado civil", options: civilStatusOptions },
+  { key: "representativeNationality", label: "Nacionalidad", options: nationalityOptions },
   { key: "representativeOccupation", label: "Profesión u oficio" },
   { key: "representativeHomePhone", label: "Teléfono de casa", type: "tel" },
   {
@@ -71,6 +86,11 @@ export function EnrollmentWizard({
 }: Props) {
   const [step, setStep] = useState(0);
   const [saved, setSaved] = useState<Enrollment | null>(enrollment);
+  useEffect(() => {
+    if (enrollment && enrollment.id === saved?.id && enrollment.status !== saved.status) {
+      startTransition(() => setSaved(enrollment));
+    }
+  }, [enrollment, saved?.id, saved?.status]);
   const [firstName, setFirstName] = useState(
     enrollment?.studentFirstName ?? candidate?.firstName ?? "",
   );
@@ -97,6 +117,13 @@ export function EnrollmentWizard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const year = bootstrap?.schoolYears.find((item) => item.year === 2027);
+  const configuredSections = useMemo(() => {
+    if (!year) return [];
+    return [...new Set((bootstrap?.courseOfferings ?? [])
+      .filter((item) => item.active && item.schoolYearId === year.id && item.gradeId === gradeId)
+      .map((item) => item.section?.trim() ?? "")
+      .filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
+  }, [bootstrap?.courseOfferings, gradeId, year]);
   useEffect(() => {
     if (!candidate || enrollment) return;
     let active = true;
@@ -115,10 +142,12 @@ export function EnrollmentWizard({
           representativeName: `${legacy.representativeFirstName} ${legacy.representativeLastName}`.trim(),
         } : {};
         delete imported.contractId;
+        const contractOnlyFields = new Set(["contractSignedAt", "representativeSignatureBase64", "motherSignatureBase64", "fatherSignatureBase64", "contractNumber", "enrollmentFee", "monthlyFee"]);
+        for (const key of contractOnlyFields) delete imported[key];
         setProfile((current) => ({
             ...sharedProfile,
             ...imported,
-            ...Object.fromEntries(Object.entries(previous?.profile ?? {}).filter(([, value]) => value != null && value !== "")),
+            ...Object.fromEntries(Object.entries(previous?.profile ?? {}).filter(([key, value]) => !contractOnlyFields.has(key) && value != null && value !== "")),
             ...Object.fromEntries(
               Object.entries(current).filter(
                 ([, value]) => value != null && value !== "",
@@ -148,7 +177,7 @@ export function EnrollmentWizard({
       )
     );
   }, [profile.birthDate]);
-  function field({ key, label, type = "text", placeholder }: Field) {
+  function field({ key, label, type = "text", placeholder, options }: Field) {
     if (type === "date") {
       const currentYear = new Date().getFullYear();
       return (
@@ -160,6 +189,23 @@ export function EnrollmentWizard({
           maxYear={key === "birthDate" ? currentYear : currentYear + 10}
           onChange={(value) => setProfile((current) => ({ ...current, [key]: value }))}
         />
+      );
+    }
+    if (options) {
+      const currentValue = String(profile[key] ?? "");
+      return (
+        <label className="field-label" key={key}>
+          {label}
+          <select
+            value={currentValue}
+            onChange={(event) => setProfile((current) => ({ ...current, [key]: event.target.value || null }))}
+          >
+            <option value="">Seleccionar</option>
+            {optionsWithExistingValue(options, currentValue).map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
       );
     }
     return (
@@ -210,7 +256,7 @@ export function EnrollmentWizard({
         lastName: lastName.trim(),
         gradeId,
         section: section || null,
-        status: "ACTIVO",
+        status: saved?.status || "PENDIENTE_FIRMA",
         profile: {
           ...profile,
           familyName: familyName ?? profile.familyName,
@@ -285,6 +331,10 @@ export function EnrollmentWizard({
         {step === 3 && saved ? (
           <div className="wizard-scroll">
             <EnrollmentExtras
+              enrollmentId={saved.id}
+              onMarkSigned={() => setStep(2)}
+              enrollmentStatus={saved.status}
+              enrollmentFee={String(saved.profile?.enrollmentFee || "")}
               studentId={saved.studentId}
               studentName={fullName}
               gradeId={gradeId}
@@ -325,6 +375,11 @@ export function EnrollmentWizard({
                       />
                     </label>
                     {field({
+                      key: "submissionDate",
+                      label: "Fecha de solicitud",
+                      type: "date",
+                    })}
+                    {field({
                       key: "birthDate",
                       label: "Fecha de nacimiento",
                       type: "date",
@@ -353,15 +408,20 @@ export function EnrollmentWizard({
                     </label>
                     <label className="field-label">
                       Sección
-                      <input
+                      <select
                         value={section}
                         onChange={(event) => setSection(event.target.value)}
-                        placeholder="A"
-                      />
+                      >
+                        <option value="">Seleccionar sección</option>
+                        {optionsWithExistingValue(configuredSections, section).map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
                     </label>
                     <div className="form-grid-full">
                       {field({ key: "address", label: "Dirección" })}
                     </div>
+                    {field({ key: "city", label: "Municipio o ciudad" })}
                   </div>
                 </div>
               )}
@@ -389,6 +449,7 @@ export function EnrollmentWizard({
                     <div className="form-grid">
                       {[
                         { key: "emergencyContactName", label: "Contacto" },
+                        { key: "otherContact", label: "Otro contacto" },
                         {
                           key: "emergencyContactPhone",
                           label: "Celular",
@@ -431,9 +492,9 @@ export function EnrollmentWizard({
                           }
                         >
                           <option value="">Seleccionar</option>
-                          <option value="MOTHER">Madre</option>
-                          <option value="FATHER">Padre</option>
-                          <option value="OTHER">Otro</option>
+                          {optionsWithExistingValue(representativeTypeOptions, profile.representativeType).map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
                         </select>
                       </label>
                       {representativeFields.map(field)}
@@ -441,9 +502,9 @@ export function EnrollmentWizard({
                         Tipo de documento
                         <select value={String(profile.representativeDocumentType || "")} onChange={(event) => setProfile((current) => ({ ...current, representativeDocumentType: event.target.value }))}>
                           <option value="">Seleccionar</option>
-                          <option value="DPI">DPI</option>
-                          <option value="PASAPORTE">Pasaporte</option>
-                          <option value="OTRO">Otro</option>
+                          {optionsWithExistingValue(representativeDocumentTypeOptions, profile.representativeDocumentType).map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
                         </select>
                       </label>
                     </div>
@@ -452,10 +513,10 @@ export function EnrollmentWizard({
                     <h4>Condiciones del contrato</h4>
                     <div className="form-grid">
                       {[
-                        { key: "educationLevel", label: "Nivel" },
-                        { key: "career", label: "Carrera" },
-                        { key: "schedulePlan", label: "Jornada" },
-                        { key: "studyPlan", label: "Plan de estudios" },
+                        { key: "educationLevel", label: "Nivel", options: educationLevelOptions },
+                        { key: "career", label: "Carrera", options: careerOptions },
+                        { key: "schedulePlan", label: "Jornada", options: scheduleOptions },
+                        { key: "studyPlan", label: "Plan de estudios", options: studyPlanOptions },
                         { key: "contractNumber", label: "Número de contrato" },
                         {
                           key: "contractDiacoResolution",
@@ -471,45 +532,14 @@ export function EnrollmentWizard({
                           label: "Cuota mensual (Q)",
                           type: "number",
                         },
-                        {
-                          key: "contractSignedAt",
-                          label: "Fecha de firma",
-                          type: "date",
-                        },
                       ].map(field)}
                     </div>
                   </section>
                   <section className="form-subsection">
-                    <h4>Firmas</h4>
-                    <div className="signature-grid">
-                      <SignaturePad
-                        label="Firma del representante del contrato"
-                        value={String(profile.representativeSignatureBase64 || "")}
-                        onChange={(value) => setProfile((current) => ({ ...current, representativeSignatureBase64: value }))}
-                      />
-                      <SignaturePad
-                        label="Firma de madre"
-                        value={String(profile.motherSignatureBase64 || "")}
-                        onChange={(value) =>
-                          setProfile((current) => ({
-                            ...current,
-                            motherSignatureType: "DRAWING",
-                            motherSignatureBase64: value,
-                          }))
-                        }
-                      />
-                      <SignaturePad
-                        label="Firma de padre"
-                        value={String(profile.fatherSignatureBase64 || "")}
-                        onChange={(value) =>
-                          setProfile((current) => ({
-                            ...current,
-                            fatherSignatureType: "DRAWING",
-                            fatherSignatureBase64: value,
-                          }))
-                        }
-                      />
-                    </div>
+                    <h4>Contrato impreso</h4>
+                    <p>Imprime el contrato y recoge las firmas en papel. Marca esta casilla solo después de recibirlo firmado.</p>
+                    <label className="big-check"><input type="checkbox" checked={Boolean(profile.contractSignedAt)} onChange={(event) => setProfile((current) => ({ ...current, contractSignedAt: event.target.checked ? new Date().toLocaleDateString("en-CA") : null }))} /> Contrato físico firmado</label>
+                    {profile.contractSignedAt && <label className="field-label">Fecha de firma<input type="date" value={String(profile.contractSignedAt)} onChange={(event) => setProfile((current) => ({ ...current, contractSignedAt: event.target.value || null }))} /></label>}
                   </section>
                   <div className="form-grid-full">
                     {field({ key: "otherNotes", label: "Notas de atención" })}
@@ -550,7 +580,7 @@ export function EnrollmentWizard({
                     : step === 2
                       ? saved
                         ? "Guardar y ver pedidos"
-                        : "Inscribir y ver pedidos"
+                        : "Guardar expediente y ver pedidos"
                       : "Continuar"}
                   <AppIcon name="arrow" size={18} />
                 </button>
