@@ -6,29 +6,21 @@ import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { useLiveUpdates } from "@/components/LiveUpdatesProvider";
 import { operation, save } from "@/lib/operations/client";
 import type { AdmissionCandidate, AdmissionsOverview } from "@/lib/admissions/types";
-import type { Bootstrap, Enrollment, EnrollmentProfile, FamilyIntake, FamilySummary, LegacyContractAssignment } from "@/lib/operations/types";
-import { EnrollmentWizard } from "./EnrollmentWizard";
+import type { Bootstrap, Enrollment, FamilyIntake, FamilySummary, LegacyContractAssignment } from "@/lib/operations/types";
 import { FamilyIntakePanel } from "./FamilyIntakePanel";
 import { LegacyContractsPanel } from "./LegacyContractsPanel";
 import Link from "next/link";
 
 type Filter = "pending" | "enrolled" | "all" | "contracts";
 
-export function AdmissionsWorkspace({ overview, cleanEnrollmentEnabled = false }: { overview: AdmissionsOverview; cleanEnrollmentEnabled?: boolean }) {
+export function AdmissionsWorkspace({ overview, initialFamilyId = null, cleanEnrollmentEnabled = false }: { overview: AdmissionsOverview; initialFamilyId?: number | null; cleanEnrollmentEnabled?: boolean }) {
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
   const [candidates, setCandidates] = useState<AdmissionCandidate[]>(overview.candidates);
   const [families, setFamilies] = useState<FamilySummary[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [contracts, setContracts] = useState<LegacyContractAssignment[]>([]);
-  const [familyId, setFamilyId] = useState<number | null>(null);
+  const [familyId, setFamilyId] = useState<number | null>(initialFamilyId);
   const [familyDetail, setFamilyDetail] = useState<FamilyIntake | null>(null);
-  const [selectedChild, setSelectedChild] = useState<AdmissionCandidate | null>(null);
-  const [sharedProfile, setSharedProfile] = useState<EnrollmentProfile>({});
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [newFamilyName, setNewFamilyName] = useState("");
-  const [newFamilyStudentId, setNewFamilyStudentId] = useState(0);
-  const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("pending");
   const [error, setError] = useState("");
@@ -120,45 +112,26 @@ export function AdmissionsWorkspace({ overview, cleanEnrollmentEnabled = false }
     }
   }
 
-  async function createFamily() {
-    if (!newFamilyName.trim()) { setError("Escribe el nombre de la familia."); return; }
-    setBusy(true);
-    setError("");
-    try {
-      const created = await save<FamilyIntake>("admission-workflow/families", { name: newFamilyName.trim(), studentId: newFamilyStudentId || null });
-      setCreating(false);
-      setNewFamilyName("");
-      setNewFamilyStudentId(0);
-      await reload();
-      await openFamily(created.id);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "No se pudo crear la familia");
-    } finally {
-      setBusy(false);
-    }
+  function openRegistration(options: { familyId?: number; studentId?: number; mode?: "reinscription" | "new" } = {}) {
+    const params = new URLSearchParams();
+    if (options.familyId) params.set("familyId", String(options.familyId));
+    if (options.studentId) params.set("studentId", String(options.studentId));
+    if (options.mode) params.set("mode", options.mode);
+    const query = params.toString();
+    window.open(`/inscripciones/nueva${query ? `?${query}` : ""}`, "_blank", "noopener,noreferrer");
   }
 
-  function openChild(candidate: AdmissionCandidate | null, profile: EnrollmentProfile) {
-    const defaults = { ...profile };
-    for (const key of ["contractSignedAt", "representativeSignatureBase64", "motherSignatureBase64", "fatherSignatureBase64", "contractNumber", "enrollmentFee", "monthlyFee"]) delete defaults[key];
-    if (candidate?.historicalContracts) {
-      for (const key of Object.keys(defaults)) if (key.startsWith("representative")) delete defaults[key];
-    }
-    setSelectedChild(candidate);
-    setSharedProfile(defaults);
-    setWizardOpen(true);
+  function openChild(candidate: AdmissionCandidate | null) {
+    openRegistration({ familyId: familyId ?? undefined, studentId: candidate?.id, mode: candidate ? "reinscription" : "new" });
   }
 
   async function attachStudent(studentId: number) {
     if (!familyId) return;
-    setBusy(true);
     try {
       await save(`admission-workflow/families/${familyId}/students/${studentId}`, {});
       await reload();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo vincular al alumno");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -171,6 +144,7 @@ export function AdmissionsWorkspace({ overview, cleanEnrollmentEnabled = false }
           students={allCandidates.filter((candidate) => candidate.familyId === selectedFamily.id)}
           unassigned={unassigned}
           enrollmentStatuses={enrollmentStatuses}
+          enrollments={enrollments}
           onBack={() => { setFamilyId(null); setFamilyDetail(null); }}
           onUpdated={setFamilyDetail}
           onOpenChild={openChild}
@@ -182,8 +156,8 @@ export function AdmissionsWorkspace({ overview, cleanEnrollmentEnabled = false }
             <div className="hero-copy">
               <span className="eyebrow">CICLO ESCOLAR 2027</span>
               <h1>Inscripciones por familia</h1>
-              <button className="button button-primary" type="button" onClick={() => { setNewFamilyStudentId(0); setNewFamilyName(""); setCreating(true); }}>
-                <AppIcon name="plus" size={19} /> Nueva familia
+              <button className="button button-primary" type="button" onClick={() => openRegistration()}>
+                <AppIcon name="plus" size={19} /> Nueva inscripción
               </button>
               {cleanEnrollmentEnabled && <Link className="button" href="/inscripciones/nueva-v2">Nueva inscripción en base nueva</Link>}
             </div>
@@ -206,13 +180,9 @@ export function AdmissionsWorkspace({ overview, cleanEnrollmentEnabled = false }
             </div>
             <div className="family-unassigned-list">
               {unassigned.filter((student) => `${student.firstName} ${student.lastName}`.toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es"))).slice(0, 12).map((student) => (
-                <button className="family-child" key={student.id} type="button" onClick={() => {
-                  setNewFamilyStudentId(student.id);
-                  setNewFamilyName(student.lastName);
-                  setCreating(true);
-                }}>
+                <button className="family-child" key={student.id} type="button" onClick={() => openRegistration({ studentId: student.id, mode: "reinscription" })}>
                   <span><strong>{student.firstName} {student.lastName}</strong><small>{student.currentGrade || "Grado por definir"}</small></span>
-                  <span className="status-pill waiting">Crear familia</span><AppIcon name="arrow" size={18} />
+                  <span className="status-pill waiting">Iniciar reinscripción</span><AppIcon name="arrow" size={18} />
                 </button>
               ))}
             </div>
@@ -253,27 +223,8 @@ export function AdmissionsWorkspace({ overview, cleanEnrollmentEnabled = false }
             )}
             {filter !== "contracts" && visibleFamilies.length === 0 && <div className="empty-state"><h3>Sin familias para esta búsqueda</h3></div>}
           </section>
-          {creating && <div className="modal-backdrop" onMouseDown={() => { setCreating(false); setNewFamilyStudentId(0); }}>
-            <section className="touch-modal family-create-modal" role="dialog" aria-modal="true" aria-label="Nueva familia" onMouseDown={(event) => event.stopPropagation()}>
-              <header className="modal-header"><h2>Nueva familia</h2><button className="icon-button" onClick={() => { setCreating(false); setNewFamilyStudentId(0); }} aria-label="Cerrar"><AppIcon name="close" /></button></header>
-              <div className="family-create-content"><label className="field-label">Nombre de familia<input autoFocus value={newFamilyName} onChange={(event) => setNewFamilyName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void createFamily(); }} /></label>
-                {newFamilyStudentId > 0 && <p className="muted">Se vinculará {unassigned.find((student) => student.id === newFamilyStudentId)?.firstName} {unassigned.find((student) => student.id === newFamilyStudentId)?.lastName} a esta familia.</p>}
-                <button className="button button-primary" disabled={busy} onClick={() => void createFamily()}>{busy ? "Creando…" : "Crear familia"}</button></div>
-            </section>
-          </div>}
         </>
       )}
-      {wizardOpen && selectedFamily && <EnrollmentWizard
-        key={selectedChild?.id ?? `new-${selectedFamily.id}`}
-        candidate={selectedChild}
-        familyId={selectedFamily.id}
-        familyName={selectedFamily.name}
-        sharedProfile={sharedProfile}
-        bootstrap={bootstrap}
-        enrollment={enrollments.find((item) => item.studentId === selectedChild?.id) ?? null}
-        onClose={() => { setWizardOpen(false); setSelectedChild(null); void reload(); }}
-        onSaved={reload}
-      />}
     </WorkspaceShell>
   );
 }

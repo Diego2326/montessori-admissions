@@ -1,4 +1,14 @@
+import { demoOperation, demoSave } from "./demo";
+
 export async function operation<T>(path: string, options: RequestInit = {}): Promise<T> {
+  if (process.env.NEXT_PUBLIC_ADMISSIONS_DEMO_MODE === "true") {
+    const method = (options.method ?? "GET").toUpperCase();
+    if (method !== "GET") {
+      const body = typeof options.body === "string" ? JSON.parse(options.body) : options.body;
+      return demoSave<T>(path, body, method as "POST" | "PUT");
+    }
+    return demoOperation<T>(path);
+  }
   const response = await fetch(`/api/operations/${path.replace(/^\//, "")}`, {
     ...options,
     headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...options.headers },

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./operations.css";
 import "./forms.css";
+import "./web-montessori.css";
 
 export const metadata: Metadata = {
   title: "Inscripciones 2027 | Colegio Bilingüe Montessori",
@@ -18,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" data-theme="dark">
+    <html lang="es" data-theme="light">
       <body>{children}</body>
     </html>
   );

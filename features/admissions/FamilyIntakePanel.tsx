@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AppIcon } from "@/components/AppIcon";
 import { save } from "@/lib/operations/client";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
-import type { EnrollmentProfile, FamilyIntake } from "@/lib/operations/types";
+import type { Enrollment, EnrollmentProfile, FamilyIntake } from "@/lib/operations/types";
 import {
   civilStatusOptions,
   nationalityOptions,
@@ -19,6 +19,7 @@ type Props = {
   students: AdmissionCandidate[];
   unassigned: AdmissionCandidate[];
   enrollmentStatuses: Map<number, string>;
+  enrollments: Enrollment[];
   onBack: () => void;
   onUpdated: (family: FamilyIntake) => void;
   onOpenChild: (candidate: AdmissionCandidate | null, profile: EnrollmentProfile) => void;
@@ -48,7 +49,7 @@ const representativeFields = [
   ["representativeMobilePhone", "Celular"],
 ] as const;
 
-export function FamilyIntakePanel({ family, students, unassigned, enrollmentStatuses, onBack, onUpdated, onOpenChild, onAttachStudent }: Props) {
+export function FamilyIntakePanel({ family, students, unassigned, enrollmentStatuses, enrollments, onBack, onUpdated, onOpenChild, onAttachStudent }: Props) {
   const [name, setName] = useState(family.name);
   const [profile, setProfile] = useState<EnrollmentProfile>(family.profile);
   const [busy, setBusy] = useState(false);
@@ -161,15 +162,17 @@ export function FamilyIntakePanel({ family, students, unassigned, enrollmentStat
           </button>
         </div>
         <div className="family-children">
-          {students.map((child) => (
-            <button className="family-child" type="button" key={child.id} disabled={busy} onClick={() => void openChild(child)}>
-              <span><strong>{child.firstName} {child.lastName}</strong><small>{child.currentGrade || "Grado por definir"}</small></span>
+          {students.map((child) => {
+            const enrollment = enrollments.find((item) => item.studentId === child.id);
+            return <article className="family-child family-child-actions" key={child.id}>
+              <span><strong>{child.firstName} {child.lastName}</strong><small>{child.currentGrade || enrollment?.gradeName || "Grado por definir"}</small></span>
               <span className={`status-pill ${enrollmentStatuses.get(child.id) === "ACTIVO" ? "success" : "waiting"}`}>
                 {enrollmentStatuses.get(child.id) === "ACTIVO" ? "Inscrito" : enrollmentStatuses.get(child.id) === "PENDIENTE_PAGO" ? "Pendiente de pago" : enrollmentStatuses.get(child.id) === "PENDIENTE_FIRMA" ? "Pendiente de firma" : "Por inscribir"}
               </span>
-              <AppIcon name="arrow" size={18} />
-            </button>
-          ))}
+              <button className="button button-soft" type="button" disabled={busy} onClick={() => void openChild(child)}>Editar inscripción</button>
+              {enrollment && <a className="button button-primary" href={`/api/operations/enrollments/${enrollment.id}/contract.pdf`} target="_blank" rel="noreferrer">Generar contrato</a>}
+            </article>;
+          })}
           {students.length === 0 && <p className="muted">Agrega el primer alumno de esta familia.</p>}
         </div>
         {unassigned.length > 0 && <div className="family-attach">

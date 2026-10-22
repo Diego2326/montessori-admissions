@@ -20,6 +20,7 @@ export type Bootstrap = {
     active: boolean;
   }[];
 };
+export type CountryCallingCode = { countryCode: string; countryName: string; dialCode: string; phoneDigits: number };
 export type EnrollmentProfile = Record<
   string,
   string | number | null | undefined
@@ -55,6 +56,7 @@ export type LegacyContractAssignment = {
 export type Enrollment = {
   id: number;
   studentId: number;
+  studentUuid?: string | null;
   studentFirstName: string | null;
   studentLastName: string | null;
   schoolYearId: number;

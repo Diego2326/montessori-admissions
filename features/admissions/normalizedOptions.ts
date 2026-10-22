@@ -7,6 +7,20 @@ export const civilStatusOptions = [
   "Viudo",
 ] as const;
 
+export const occupationOptions = [
+  "Administración", "Agricultura", "Arquitectura", "Asesoría", "Comercio", "Contabilidad", "Docencia", "Diseño", "Derecho", "Enfermería", "Emprendimiento", "Ingeniería", "Medicina", "Oficios técnicos", "Servicios profesionales", "Trabajo doméstico", "Transporte",
+] as const;
+
+export const workplaceOptions = [
+  "Empresa privada", "Institución pública", "Negocio propio", "Centro educativo", "Servicios profesionales", "Trabajo independiente", "Hogar", "Sin empleo actualmente",
+] as const;
+
+export const zacapaMunicipalityOptions = [
+  "Cabañas", "Estanzuela", "Gualán", "Huité", "La Unión", "Río Hondo", "San Diego", "Teculután", "Usumatlán", "Zacapa", "Chiquimula", "Morales", "Otro municipio",
+] as const;
+
+export const attendedByOptions = ["Recepción", "Admisiones", "Secretaría", "Dirección", "Docente de turno"] as const;
+
 const nationalityCatalog = [
   { value: "Afghanistan", regionCode: "AF" },
   { value: "Åland Islands", regionCode: "AX" },

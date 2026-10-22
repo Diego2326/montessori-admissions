@@ -517,7 +517,6 @@ export function EnrollmentWizard({
                         { key: "career", label: "Carrera", options: careerOptions },
                         { key: "schedulePlan", label: "Jornada", options: scheduleOptions },
                         { key: "studyPlan", label: "Plan de estudios", options: studyPlanOptions },
-                        { key: "contractNumber", label: "Número de contrato" },
                         {
                           key: "contractDiacoResolution",
                           label: "Resolución DIACO",

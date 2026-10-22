@@ -20,6 +20,7 @@ export function WorkspaceShell({
   current: string;
   children: ReactNode;
 }) {
+  const demoMode = process.env.NEXT_PUBLIC_ADMISSIONS_DEMO_MODE === "true";
   return (
     <LiveUpdatesProvider>
       <div className="workspace">
@@ -77,7 +78,10 @@ export function WorkspaceShell({
               <span className="mobile-signout"><SignOutButton /></span>
             </div>
           </header>
-          <main className="main-content">{children}</main>
+          <main className="main-content">
+            {demoMode && <div className="demo-mode-banner"><span>DEMO</span> Modo demostración · Los cambios son temporales y no se guardan en una base de datos.</div>}
+            {children}
+          </main>
         </div>
         <nav className="mobile-nav" aria-label="Estaciones">
           {stations.map((station) => (

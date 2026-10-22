@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { admissionsApiBase, enrollmentApiBase } from "@/lib/admissions/repository";
 
-const allowedRoots = new Set(["enrollments", "school-years", "students", "admission-workflow", "admission-stations", "finance", "admissions", "admission-checkout", "v2"]);
+const allowedRoots = new Set(["enrollments", "country-codes", "school-years", "students", "admission-workflow", "admission-stations", "finance", "admissions", "admission-checkout", "v2"]);
 const enrollmentRoots = new Set(["enrollments", "country-codes", "school-years", "admission-workflow", "v2"]);
 
 function usesEnrollmentApi(path: string[]) {
@@ -12,9 +12,12 @@ function usesEnrollmentApi(path: string[]) {
 }
 
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  const { path } = await context.params;
+  if (process.env.ADMISSIONS_DEMO_MODE === "true" && path[0] === "enrollments" && ["contract", "contract.pdf"].includes(path.at(-1) ?? "")) {
+    return new NextResponse(`<!doctype html><html lang="es"><meta charset="utf-8"><title>Contrato demo</title><body style="font-family:Arial,sans-serif;max-width:760px;margin:48px auto;color:#17324d"><img src="/logo-colegio.png" width="64"><h1>Colegio Bilingüe Montessori Zacapa</h1><h2>Contrato de inscripción · Demostración</h2><p>Esta vista es una muestra del contrato. Los datos no están conectados a la API.</p></body></html>`, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  }
   const token = (await cookies()).get("admissions_token")?.value;
   if (!token) return NextResponse.json({ error: "Sesión vencida" }, { status: 401 });
-  const { path } = await context.params;
   if (!path.length || !allowedRoots.has(path[0])) return NextResponse.json({ error: "Ruta no disponible" }, { status: 404 });
   if (path[0] === "v2" && (process.env.ENROLLMENT_API_MODE !== "clean" || !process.env.ENROLLMENT_API_URL)) return NextResponse.json({ error: "Servicio de inscripciones no configurado" }, { status: 503 });
   const base = usesEnrollmentApi(path) ? enrollmentApiBase() : admissionsApiBase();

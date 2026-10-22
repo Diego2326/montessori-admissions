@@ -9,6 +9,7 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<LiveState>({ version: 0, area: null, connected: false });
 
   useEffect(() => {
+    if (process.env.NEXT_PUBLIC_ADMISSIONS_DEMO_MODE === "true") return;
     let active = true;
     let socket: WebSocket | null = null;
     let reconnect: ReturnType<typeof setTimeout> | null = null;
