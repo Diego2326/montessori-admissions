@@ -9,5 +9,5 @@ export default async function Home() {
   const token = await requireAdmissionsSession();
   const overview = await getAdmissionsOverview(token);
   if (overview.connection === "unauthorized") redirect("/login");
-  return <AdmissionsWorkspace overview={overview} />;
+  return <AdmissionsWorkspace overview={overview} cleanEnrollmentEnabled={process.env.ENROLLMENT_API_MODE === "clean" && !!process.env.ENROLLMENT_API_URL} />;
 }

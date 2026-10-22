@@ -22,6 +22,12 @@ Las estaciones se actualizan por WebSocket; un refresco de respaldo ocurre cada 
 
 ## Desarrollo
 
+Para conectar el servicio de inscripciones en modo limpio, configurar
+`ENROLLMENT_API_URL` y `ENROLLMENT_API_MODE=clean`. Así `/v2/**` llega al
+servicio nuevo y las rutas del mostrador que aún usan el esquema anterior
+permanecen en `ADMISSIONS_API_URL`. El modo limpio no traslada por sí mismo
+familias, contratos ni caja.
+
 1. Copia `.env.example` a `.env.local` y configura la URL de la API.
 2. Ejecuta `npm install` y `npm run dev`.
 3. Verifica las migraciones del worktree/entorno utilizado. En `montessori-backend-admissions` el flujo de estaciones está en `V83__admissions_station_sales.sql` y `V85__admission_staff_workflow.sql`. La numeración V75/V76 de documentos anteriores es histórica; contrastar siempre con el esquema real antes de integrar.

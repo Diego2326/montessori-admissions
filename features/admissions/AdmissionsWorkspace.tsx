@@ -10,10 +10,11 @@ import type { Bootstrap, Enrollment, EnrollmentProfile, FamilyIntake, FamilySumm
 import { EnrollmentWizard } from "./EnrollmentWizard";
 import { FamilyIntakePanel } from "./FamilyIntakePanel";
 import { LegacyContractsPanel } from "./LegacyContractsPanel";
+import Link from "next/link";
 
 type Filter = "pending" | "enrolled" | "all" | "contracts";
 
-export function AdmissionsWorkspace({ overview }: { overview: AdmissionsOverview }) {
+export function AdmissionsWorkspace({ overview, cleanEnrollmentEnabled = false }: { overview: AdmissionsOverview; cleanEnrollmentEnabled?: boolean }) {
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
   const [candidates, setCandidates] = useState<AdmissionCandidate[]>(overview.candidates);
   const [families, setFamilies] = useState<FamilySummary[]>([]);
@@ -184,6 +185,7 @@ export function AdmissionsWorkspace({ overview }: { overview: AdmissionsOverview
               <button className="button button-primary" type="button" onClick={() => { setNewFamilyStudentId(0); setNewFamilyName(""); setCreating(true); }}>
                 <AppIcon name="plus" size={19} /> Nueva familia
               </button>
+              {cleanEnrollmentEnabled && <Link className="button" href="/inscripciones/nueva-v2">Nueva inscripción en base nueva</Link>}
             </div>
             <div className="hero-art"><div className="art-ring"><AppIcon name="users" size={68} /></div></div>
           </div>
