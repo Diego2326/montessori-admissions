@@ -4,5 +4,4 @@ node_modules
 dist
 .next
 .wrangler
-build
 tsconfig.tsbuildinfo
