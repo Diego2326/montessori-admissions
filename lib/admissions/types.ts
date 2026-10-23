@@ -2,8 +2,10 @@ export type CandidateStatus = "PROMOTION" | "GRADUATED" | "REVIEW";
 
 export interface AdmissionCandidate {
   id: number;
+  uuid?: string | null;
   firstName: string;
   lastName: string;
+  birthDate?: string | null;
   currentGrade: string | null;
   proposedGrade: string | null;
   familyId: number | null;

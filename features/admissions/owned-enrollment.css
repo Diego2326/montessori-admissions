@@ -1,0 +1,17 @@
+.owned-flow { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
+.owned-flow .section-heading { align-items: start; }
+.owned-flow .section-heading p { color: var(--muted); line-height: 1.5; }
+.owned-card { display: grid; gap: 18px; padding: 28px; border: 1px solid var(--border); border-radius: 22px; background: var(--surface); }
+.owned-card h2 { margin: 0; font-size: 22px; }
+.owned-card p { margin: 0; color: var(--muted); line-height: 1.5; }
+.owned-card label { display: grid; gap: 8px; font-size: 14px; font-weight: 700; }
+.owned-card input, .owned-card select { width: 100%; min-height: 48px; padding: 10px 13px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-soft); color: var(--text); }
+.owned-card .owned-check { display: flex; align-items: center; }
+.owned-card .owned-check input { width: 18px; min-height: 18px; }
+.owned-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.owned-row { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
+.owned-row label { flex: 1 1 240px; }
+.owned-result { display: block; width: 100%; padding: 13px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-soft); color: var(--text); text-align: left; }
+.owned-result:hover { border-color: var(--primary); }
+.owned-notice { padding: 14px 18px; border-radius: 12px; background: #244637; color: #ceffdc; }
+.owned-card code { word-break: break-all; }

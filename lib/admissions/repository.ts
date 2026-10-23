@@ -4,11 +4,17 @@ export function admissionsApiBase(): string | null {
   return (process.env.ADMISSIONS_API_URL ?? "https://notas-api-625997821641.northamerica-south1.run.app").replace(/\/$/, "");
 }
 
+export function enrollmentApiBase(): string | null {
+  return (process.env.ENROLLMENT_API_URL ?? admissionsApiBase())?.replace(/\/$/, "") ?? null;
+}
+
 export async function getAdmissionsOverview(token: string): Promise<AdmissionsOverview> {
   const base = admissionsApiBase();
   if (!base) return { connection: "not_configured", candidates: [] };
   try {
-    const response = await fetch(`${base}/admission-workflow/2027/overview`, {
+    const enrollmentBase = process.env.ENROLLMENT_API_MODE === "clean" ? admissionsApiBase() : enrollmentApiBase();
+    if (!enrollmentBase) return { connection: "not_configured", candidates: [] };
+    const response = await fetch(`${enrollmentBase}/admission-workflow/2027/overview`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
