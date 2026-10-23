@@ -6,7 +6,7 @@ import { operation, save } from "@/lib/operations/client";
 import type { Bootstrap } from "@/lib/operations/types";
 import "./owned-enrollment.css";
 
-type Family = { id: string; name: string; representativeFirstName: string; representativeLastName: string; representativeDocumentType: string; representativeDocumentNumber: string; representativePhone: string | null; address: string | null };
+type Family = { id: string; name: string; representativeFirstName: string; representativeLastName: string; representativeDocumentType: string; representativeDocumentNumber: string; representativePhone: string | null; representativeEmail: string | null; address: string | null };
 type Student = { uuid: string; firstName: string; lastName: string; gradeId: number | null; section: string | null; active: boolean };
 type Enrollment = { id: string; familyId: string | null; studentUuid: string; firstName: string; lastName: string; schoolYear: number; gradeId: number; section: string | null; status: string; feeChargeId: string; signedAt: string | null };
 type Charge = { amount: number; paidAmount: number; paid: boolean };
@@ -22,6 +22,7 @@ export function OwnedEnrollmentFlow() {
   const [repLast, setRepLast] = useState("");
   const [repDocument, setRepDocument] = useState("");
   const [repPhone, setRepPhone] = useState("");
+  const [repEmail, setRepEmail] = useState("");
   const [address, setAddress] = useState("");
   const [familySearch, setFamilySearch] = useState("");
   const [familyMatches, setFamilyMatches] = useState<Family[]>([]);
@@ -60,10 +61,19 @@ export function OwnedEnrollmentFlow() {
       const saved = await save<Family>(`v2/families/${familyId}`, {
         name: familyName.trim(), representativeFirstName: repFirst.trim(), representativeLastName: repLast.trim(),
         representativeDocumentType: "DPI", representativeDocumentNumber: repDocument.trim(),
-        representativePhone: repPhone.trim() || null, address: address.trim() || null,
+        representativePhone: repPhone.trim() || null, representativeEmail: repEmail.trim() || null, address: address.trim() || null,
       }, "PUT");
       setFamily(saved);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "No se pudo guardar la familia"); }
+    finally { setBusy(false); }
+  }
+  async function saveFamilyEmail() {
+    if (!family) return;
+    setBusy(true); setError("");
+    try {
+      setFamily(await save<Family>(`v2/families/${family.id}/email`, { representativeEmail: repEmail.trim() || null }, "PATCH"));
+      setNotice("Correo del representante guardado.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "No se pudo guardar el correo"); }
     finally { setBusy(false); }
   }
   async function searchStudents() {
@@ -128,10 +138,10 @@ export function OwnedEnrollmentFlow() {
   return <div className="owned-flow">
     <div className="section-heading"><div><span className="eyebrow">BASE NUEVA · 2027</span><h1>Inscripción nueva</h1><p>Familia, alumno e inscripción se guardan con UUID. El contrato se gestiona antes de activar al alumno.</p></div><Link className="button" href="/">Volver</Link></div>
     {error && <p className="alert-error" role="alert">{error}</p>}{notice && <p className="owned-notice" role="status">{notice}</p>}
-    <section className="owned-card"><h2>1. Familia y representante</h2>{family ? <p><strong>{family.name}</strong> · {family.representativeFirstName} {family.representativeLastName} <button className="button" type="button" onClick={() => setFamily(null)}>Cambiar</button></p> : <>
+    <section className="owned-card"><h2>1. Familia y representante</h2>{family ? <><p><strong>{family.name}</strong> · {family.representativeFirstName} {family.representativeLastName} <button className="button" type="button" onClick={() => { setFamily(null); setRepEmail(""); }}>Cambiar</button></p><div className="owned-row"><label>Correo del representante<input type="email" value={repEmail} onChange={(event) => setRepEmail(event.target.value)} /></label><button className="button" type="button" disabled={busy || repEmail.trim() === (family.representativeEmail ?? "")} onClick={() => void saveFamilyEmail()}>Guardar correo</button></div></> : <>
       <div className="owned-row"><label>Buscar familia existente<input value={familySearch} onChange={(event) => setFamilySearch(event.target.value)} /></label><button className="button" type="button" onClick={() => void searchFamilies()}>Buscar</button></div>
-      {familyMatches.map((item) => <button className="owned-result" type="button" key={item.id} onClick={() => setFamily(item)}>{item.name} · {item.representativeFirstName} {item.representativeLastName}</button>)}
-      <div className="owned-grid"><label>Nombre de familia<input value={familyName} onChange={(event) => setFamilyName(event.target.value)} /></label><label>Nombres del representante<input value={repFirst} onChange={(event) => setRepFirst(event.target.value)} /></label><label>Apellidos<input value={repLast} onChange={(event) => setRepLast(event.target.value)} /></label><label>DPI<input value={repDocument} onChange={(event) => setRepDocument(event.target.value)} /></label><label>Teléfono<input value={repPhone} onChange={(event) => setRepPhone(event.target.value)} /></label><label>Dirección<input value={address} onChange={(event) => setAddress(event.target.value)} /></label></div>
+      {familyMatches.map((item) => <button className="owned-result" type="button" key={item.id} onClick={() => { setFamily(item); setRepEmail(item.representativeEmail ?? ""); }}>{item.name} · {item.representativeFirstName} {item.representativeLastName}</button>)}
+      <div className="owned-grid"><label>Nombre de familia<input value={familyName} onChange={(event) => setFamilyName(event.target.value)} /></label><label>Nombres del representante<input value={repFirst} onChange={(event) => setRepFirst(event.target.value)} /></label><label>Apellidos<input value={repLast} onChange={(event) => setRepLast(event.target.value)} /></label><label>DPI<input value={repDocument} onChange={(event) => setRepDocument(event.target.value)} /></label><label>Teléfono<input value={repPhone} onChange={(event) => setRepPhone(event.target.value)} /></label><label>Correo del representante<input type="email" value={repEmail} onChange={(event) => setRepEmail(event.target.value)} /></label><label>Dirección<input value={address} onChange={(event) => setAddress(event.target.value)} /></label></div>
       <button className="button button-primary" disabled={busy || !familyName.trim() || !repFirst.trim() || !repLast.trim() || !repDocument.trim()} onClick={() => void createFamily()}>Guardar familia</button>
     </>}</section>
     <section className="owned-card"><h2>2. Alumno</h2><label className="owned-check"><input type="checkbox" checked={existing} onChange={(event) => { setExisting(event.target.checked); setStudent(null); setStudentMatches([]); }} /> Ya estudia en Montessori</label>{existing ? <><div className="owned-row"><label>Nombre o UUID<input value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} /></label><button className="button" type="button" onClick={() => void searchStudents()}>Buscar</button></div>{student && <p>Seleccionado: <strong>{student.firstName} {student.lastName}</strong> · {student.uuid}</p>}{studentMatches.filter((item) => item.active).map((item) => <button className="owned-result" type="button" key={item.uuid} onClick={() => { setStudent(item); setGradeId(item.gradeId ? String(item.gradeId) : ""); setSection(item.section ?? ""); }}>{item.firstName} {item.lastName} · {item.uuid}</button>)}</> : <div className="owned-grid"><label>Nombres<input value={firstName} onChange={(event) => setFirstName(event.target.value)} /></label><label>Apellidos<input value={lastName} onChange={(event) => setLastName(event.target.value)} /></label></div>}</section>

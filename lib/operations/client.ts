@@ -26,6 +26,6 @@ export async function operation<T>(path: string, options: RequestInit = {}): Pro
   return response.json() as Promise<T>;
 }
 
-export function save<T>(path: string, body: unknown, method: "POST" | "PUT" = "POST") {
+export function save<T>(path: string, body: unknown, method: "POST" | "PUT" | "PATCH" = "POST") {
   return operation<T>(path, { method, body: JSON.stringify(body) });
 }

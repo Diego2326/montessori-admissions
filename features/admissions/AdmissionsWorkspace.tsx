@@ -9,7 +9,6 @@ import type { AdmissionCandidate, AdmissionsOverview } from "@/lib/admissions/ty
 import type { Bootstrap, Enrollment, FamilyIntake, FamilySummary, LegacyContractAssignment } from "@/lib/operations/types";
 import { FamilyIntakePanel } from "./FamilyIntakePanel";
 import { LegacyContractsPanel } from "./LegacyContractsPanel";
-import Link from "next/link";
 
 type Filter = "pending" | "enrolled" | "all" | "contracts";
 
@@ -113,6 +112,10 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, cleanEnr
   }
 
   function openRegistration(options: { familyId?: number; studentId?: number; mode?: "reinscription" | "new" } = {}) {
+    if (cleanEnrollmentEnabled) {
+      window.open("/inscripciones/nueva", "_blank", "noopener,noreferrer");
+      return;
+    }
     const params = new URLSearchParams();
     if (options.familyId) params.set("familyId", String(options.familyId));
     if (options.studentId) params.set("studentId", String(options.studentId));
@@ -159,7 +162,7 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, cleanEnr
               <button className="button button-primary" type="button" onClick={() => openRegistration()}>
                 <AppIcon name="plus" size={19} /> Nueva inscripción
               </button>
-              {cleanEnrollmentEnabled && <Link className="button" href="/inscripciones/nueva-v2">Nueva inscripción en base nueva</Link>}
+              {cleanEnrollmentEnabled && <p>El formulario principal guarda la inscripción en la base nueva. Busca al alumno existente por nombre o UUID dentro del formulario.</p>}
             </div>
             <div className="hero-art"><div className="art-ring"><AppIcon name="users" size={68} /></div></div>
           </div>
