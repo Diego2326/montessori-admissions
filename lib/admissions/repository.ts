@@ -1,7 +1,7 @@
 import type { AdmissionsOverview } from "./types";
 
 export function admissionsApiBase(): string | null {
-  return (process.env.ADMISSIONS_API_URL ?? "https://notas-api-625997821641.northamerica-south1.run.app").replace(/\/$/, "");
+  return (process.env.ADMISSIONS_API_URL ?? "https://montessori-lms-api-625997821641.northamerica-south1.run.app").replace(/\/$/, "");
 }
 
 export function enrollmentApiBase(): string | null {

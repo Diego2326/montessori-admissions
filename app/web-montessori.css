@@ -59,13 +59,14 @@ body { background: var(--bg); }
 .hero-art .art-ring {
   width: 174px;
   height: 174px;
-  border: 0;
-  border-radius: 88px 88px 8px 8px;
-  background: url("https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=600&q=85") center/cover;
-  box-shadow: 0 12px 25px rgba(23,63,138,.12);
-  transform: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid #dbe3f0;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #fff, #eef3fa);
+  box-shadow: 0 12px 25px rgba(23,63,138,.08);
 }
-.hero-art .art-ring svg { display: none; }
+.hero-art .art-ring svg { display: block; color: var(--primary); }
 .hero-art .art-spark { background: #f4c677; color: var(--primary); border-radius: 50%; box-shadow: 0 8px 20px rgba(23,63,138,.12); }
 
 .button, .primary-button, .outline-button { border-radius: 100px; font-weight: 700; }
