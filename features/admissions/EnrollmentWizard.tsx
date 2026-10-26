@@ -1,6 +1,7 @@
 "use client";
 
 import { startTransition, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { AppIcon } from "@/components/AppIcon";
 import { operation, save } from "@/lib/operations/client";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
@@ -10,7 +11,6 @@ import type {
   EnrollmentProfile,
   LegacyContractDetails,
 } from "@/lib/operations/types";
-import { EnrollmentExtras } from "./EnrollmentExtras";
 import { DatePartsField } from "./DatePartsField";
 import {
   careerOptions,
@@ -313,8 +313,8 @@ export function EnrollmentWizard({
             <AppIcon name="close" />
           </button>
         </header>
-        <nav className="wizard-steps" aria-label="Pasos de inscripción">
-          {(familyId ? [[0, "Alumno"], [2, "Contrato"], [3, "Pedidos"]] as const : [[0, "Alumno"], [1, "Familia"], [2, "Contrato"], [3, "Pedidos"]] as const).map(([index, name]) => (
+        <nav className={`wizard-steps${familyId ? " wizard-steps-family" : ""}`} aria-label="Pasos de inscripción">
+          {(familyId ? [[0, "Alumno"], [2, "Contrato"], [3, "Finalizada"]] as const : [[0, "Alumno"], [1, "Familia"], [2, "Contrato"], [3, "Finalizada"]] as const).map(([index, name]) => (
             <span
               key={name}
               className={
@@ -330,18 +330,24 @@ export function EnrollmentWizard({
         </nav>
         {step === 3 && saved ? (
           <div className="wizard-scroll">
-            <EnrollmentExtras
-              enrollmentId={saved.id}
-              onMarkSigned={() => setStep(2)}
-              enrollmentStatus={saved.status}
-              enrollmentFee={String(saved.profile?.enrollmentFee || "")}
-              studentId={saved.studentId}
-              studentName={fullName}
-              gradeId={gradeId}
-              schoolYearId={year!.id}
-              onDone={onClose}
-              doneLabel={familyId ? "Volver a la familia" : undefined}
-            />
+            <div className="enrollment-complete">
+              <div className="success-banner">
+                <span><AppIcon name="check" size={28} /></span>
+                <div>
+                  <strong>Inscripción guardada</strong>
+                  <p>{fullName} · {saved.status === "ACTIVO" ? "Inscripción activa" : saved.status === "PENDIENTE_PAGO" ? "Pendiente de pago" : "Pendiente de firma"}</p>
+                </div>
+              </div>
+              <p>Los pedidos de libros y uniformes se gestionan por separado desde sus estaciones y se asocian a alumnos inscritos de familias registradas.</p>
+              <a className="button button-soft" href={`/api/operations/enrollments/${saved.id}/contract`} target="_blank" rel="noreferrer">Imprimir contrato</a>
+              {saved.status === "PENDIENTE_FIRMA" && <button className="button button-soft" type="button" onClick={() => setStep(2)}>Registrar firma física</button>}
+              {saved.status === "PENDIENTE_PAGO" && !(Number(saved.profile?.enrollmentFee) > 0) && <p className="alert-error" role="alert">Falta definir la cuota de inscripción. Completa la tarifa del grado o el monto del contrato para que Caja pueda cobrarla.</p>}
+              <div className="enrollment-sales-links">
+                <Link className="button button-soft" href="/libros">Ir a Libros</Link>
+                <Link className="button button-soft" href="/uniformes">Ir a Uniformes</Link>
+              </div>
+              <button className="button button-primary" type="button" onClick={onClose}>{familyId ? "Volver a la familia" : "Terminar"}</button>
+            </div>
           </div>
         ) : (
           <>
@@ -578,8 +584,8 @@ export function EnrollmentWizard({
                     ? "Guardando…"
                     : step === 2
                       ? saved
-                        ? "Guardar y ver pedidos"
-                        : "Guardar expediente y ver pedidos"
+                        ? "Guardar cambios"
+                        : "Guardar inscripción"
                       : "Continuar"}
                   <AppIcon name="arrow" size={18} />
                 </button>

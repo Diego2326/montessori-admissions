@@ -11,10 +11,12 @@ Aplicación de mostrador para el ciclo escolar 2027. Atiende cuatro estaciones: 
 
 ## Flujo
 
-1. Inscripciones confirma el expediente del alumno. Después puede enviar el paquete de libros del grado y las prendas elegidas por la familia.
-2. Libros y Uniformes reciben las órdenes en vivo, crean órdenes adicionales para alumnos inscritos, preparan artículos disponibles y anotan faltantes.
-3. Caja reúne todos los cargos pendientes de cada alumno. Puede cobrar hermanos juntos en un recibo o por separado. Cada cobro liquida la cuenta seleccionada completa.
+1. Inscripciones guarda el expediente, el contrato y el estado del alumno. No crea pedidos de productos.
+2. Libros y Uniformes registran ventas por separado para alumnos inscritos. Los pedidos se vinculan al alumno y la familia registrada; las estaciones preparan artículos disponibles y anotan faltantes.
+3. Caja reúne los cargos pendientes. Puede cobrar hermanos de una familia juntos en un recibo o por separado. Cada cobro liquida las cuentas seleccionadas completas.
 4. Tras el pago, las estaciones entregan artículos preparados. Los faltantes siguen pendientes hasta su entrega.
+
+Al terminar una inscripción, la pantalla ofrece accesos a las estaciones de Libros y Uniformes. Para iniciar una venta se selecciona un alumno inscrito; Caja puede agrupar los cargos de hermanos de la misma familia.
 
 El recibo guarda una copia inmutable de los conceptos cobrados. La estructura de datos distingue el tipo de documento para incorporar facturas más adelante. El catálogo, precios, paquetes, stock y reportes generales corresponden a `montessori-admin`.
 

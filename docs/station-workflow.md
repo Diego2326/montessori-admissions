@@ -1,4 +1,4 @@
-# Flujo operativo de inscripciones 2027
+# Flujo operativo del mostrador 2027
 
 Estado: flujo acordado y con implementación en las ramas de Admissions y Backend. Pendiente de validación integral, integración y despliegue.
 
@@ -8,23 +8,22 @@ Seguimiento vigente (workspace local): [avance y pendientes](../../montessori-ba
 
 `montessori-admissions` es la herramienta del personal que atiende a las familias, inscribe alumnos, prepara libros y uniformes, cobra y entrega. Las cuatro estaciones comparten el mismo expediente del alumno y el mismo ciclo escolar. La configuración de catálogos, paquetes por grado, precios, recepción y ajustes de inventario, permisos, conciliación y reportes generales pertenecen a `montessori-admin`.
 
-La inscripción debe quedar registrada antes de generar cualquier pedido. Luego, Inscripciones puede originar pedidos de Libros y Uniformes. Cada estación también puede crear y editar pedidos de alumnos ya inscritos. Caja cobra la totalidad de los cargos incluidos en cada operación: no hay abonos. Cuando hay hermanos, el operador puede cobrar juntos los cargos de varios alumnos y emitir un solo recibo, o hacer cobros y recibos separados por alumno. Cada cargo queda atribuido a su alumno incluso en un recibo familiar. La preparación puede empezar antes del pago; la entrega requiere que el pedido esté pagado. Un artículo pagado puede continuar pendiente de entrega.
+Inscripciones y ventas son operaciones separadas. Inscripciones guarda el expediente, contrato y estado del alumno; no crea pedidos de productos. Libros y Uniformes venden desde sus propias estaciones y cada pedido se vincula a un alumno inscrito de una familia registrada. Caja cobra los cargos pendientes; puede agrupar hermanos en un recibo familiar o emitir recibos por alumno. Cada cargo queda atribuido a su alumno. La preparación puede empezar antes del pago; la entrega requiere que el pedido esté pagado. Un artículo pagado puede continuar pendiente de entrega.
 
 ## Recorrido de una familia
 
 1. Inscripciones busca al alumno y su familia; reutiliza el expediente si existe y evita duplicados. Si es nuevo, crea el expediente.
-2. Completa los datos del alumno, grado, padres, representante, emergencia, cuotas y contrato. Guarda avances y marca lo que falte. Confirma la inscripción.
-3. En la misma atención puede añadir el paquete de libros sugerido para el grado y seleccionar prendas, tallas y cantidades de uniformes. Se crean órdenes y cargos asociados al alumno.
-4. Libros y Uniformes reciben las órdenes automáticamente. Sus operadores pueden crear otras órdenes o editar productos, tallas y cantidades de sus propios pedidos antes del cobro. Preparan lo disponible y marcan faltantes por renglón.
-5. Caja ve los cargos pendientes agrupados por alumno y origen. Si hay hermanos, ofrece **cobrar juntos** o **cobrar por alumno**. Confirma el total de los alumnos seleccionados en una operación y genera un recibo; los cargos de alumnos no seleccionados siguen pendientes. Si una estación cambió una orden durante el cobro, Caja debe revisar el total nuevo antes de confirmar.
+2. Completa los datos del alumno, grado, padres, representante, emergencia, cuotas y contrato. Guarda avances y registra el estado de inscripción. El asistente termina sin crear pedidos de productos.
+3. Cuando la familia decide comprar, el operador entra a Libros o Uniformes, selecciona un alumno inscrito de la familia y crea el pedido por separado. Libros puede sugerir el paquete del grado; Uniformes permite elegir prendas, tallas y cantidades.
+4. Cada estación prepara lo disponible y anota faltantes. Los pedidos y cargos quedan asociados al alumno seleccionado.
+5. Caja ve los cargos pendientes. Si hay hermanos, ofrece **cobrar juntos** o **cobrar por alumno**. Confirma el total de los alumnos seleccionados en una operación y genera un recibo; los cargos de alumnos no seleccionados siguen pendientes. Si una estación cambió una orden durante el cobro, Caja debe revisar el total nuevo antes de confirmar.
 6. Las estaciones reciben la confirmación de pago y registran la entrega por artículo y cantidad. Los faltantes continúan visibles como deuda de entrega hasta resolverse.
-7. Las compras posteriores de un alumno inscrito empiezan en Libros o Uniformes y generan un nuevo cargo pendiente para Caja.
 
 ## Pantallas de trabajo
 
-- **Buscar / Inscribir**: búsqueda rápida por alumno, familia o código; expedientes recientes; formulario por pasos; revisión final; contrato y firmas según el flujo existente. Tras confirmar inscripción, selección opcional de libros y uniformes.
-- **Libros**: cola de pedidos nuevos, en preparación, listos y con faltantes. Al abrir un pedido: alumno, grado, paquete sugerido, artículos y cantidades, existencias, notas, preparación y entrega. Acción para crear pedido adicional de alumno inscrito.
-- **Uniformes**: cola equivalente; selección libre de prendas y tallas, sin paquete obligatorio. Acción para crear pedido adicional de alumno inscrito.
+- **Buscar / Inscribir**: búsqueda rápida por alumno, familia o código; expedientes recientes; formulario por pasos; revisión final; contrato y firmas según el flujo existente. Al terminar muestra accesos separados a Libros y Uniformes.
+- **Libros**: cola de pedidos nuevos, en preparación, listos y con faltantes. Al abrir un pedido: alumno, grado, paquete sugerido, artículos y cantidades, existencias, notas, preparación y entrega. Acción para crear un pedido independiente para un alumno inscrito.
+- **Uniformes**: cola equivalente; selección libre de prendas y tallas, sin paquete obligatorio. Acción para crear un pedido independiente para un alumno inscrito.
 - **Caja**: cola de cuentas pendientes; desglose por alumno de inscripción, libros y uniformes; selector táctil de hermanos para cobro conjunto o individual; total vigente; método y referencia de pago; confirmación única; recibo, consulta y reimpresión. No contiene configuración financiera.
 - **Pendientes de entrega**: vista filtrable de pedidos pagados con artículos aún no entregados, accesible desde las estaciones correspondientes.
 

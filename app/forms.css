@@ -5,6 +5,9 @@
   padding: 14px 27px;
   border-bottom: 1px solid var(--border);
 }
+.wizard-steps-family {
+  grid-template-columns: repeat(3, 1fr);
+}
 .wizard-steps span {
   display: flex;
   align-items: center;
@@ -165,6 +168,24 @@
 .extras-screen {
   display: grid;
   gap: 16px;
+}
+.enrollment-complete {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+.enrollment-complete > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.enrollment-sales-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 .success-banner {
   display: flex;
