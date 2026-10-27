@@ -19,7 +19,7 @@ import { OrderDetails } from "./OrderDetails";
 
 export type Station = "BOOKS" | "UNIFORMS";
 type Filter = "new" | "preparing" | "ready" | "pending" | "done";
-export function StationWorkspace({ station }: { station: Station }) {
+export function StationWorkspace({ station, initialStudentUuid }: { station: Station; initialStudentUuid?: string }) {
   const title = station === "BOOKS" ? "Libros" : "Uniformes";
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -30,6 +30,8 @@ export function StationWorkspace({ station }: { station: Station }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [composing, setComposing] = useState(false);
+  const [composeStudentId, setComposeStudentId] = useState<number | null>(null);
+  const [deepLinkHandled, setDeepLinkHandled] = useState(false);
   const [error, setError] = useState("");
   const { version, area } = useLiveUpdates();
   const reload = useCallback(async () => {
@@ -71,6 +73,17 @@ export function StationWorkspace({ station }: { station: Station }) {
     const timer = setTimeout(() => void reload(), 0);
     return () => clearTimeout(timer);
   }, [version, area, station, reload]);
+  useEffect(() => {
+    if (deepLinkHandled || !initialStudentUuid || !students.length) return;
+    const student = students.find((item) => item.studentUuid === initialStudentUuid);
+    setDeepLinkHandled(true);
+    if (!student) {
+      setError("Este alumno todavía no aparece en el padrón de la estación. Confirma que la inscripción esté activa e inténtalo de nuevo.");
+      return;
+    }
+    setComposeStudentId(student.id);
+    setComposing(true);
+  }, [deepLinkHandled, initialStudentUuid, students]);
   const active = orders.filter((order) => order.status !== "VOID");
   const count = {
     new: active.filter(
@@ -133,7 +146,7 @@ export function StationWorkspace({ station }: { station: Station }) {
           <h1>{title}</h1>
           <button
             className="button button-primary"
-            onClick={() => setComposing(true)}
+            onClick={() => { setComposeStudentId(null); setComposing(true); }}
             disabled={!schoolYearId}
           >
             <AppIcon name="plus" size={19} /> Nueva orden
@@ -305,9 +318,11 @@ export function StationWorkspace({ station }: { station: Station }) {
           products={products}
           students={students}
           schoolYearId={schoolYearId}
+          initialStudentId={composeStudentId ?? undefined}
           order={editing}
           onCancel={() => {
             setComposing(false);
+            setComposeStudentId(null);
             setEditingId(null);
           }}
           onSaved={(order) => {

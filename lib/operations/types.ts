@@ -2,6 +2,7 @@ export type SchoolYear = { id: number; year: number; active: boolean };
 export type Grade = { id: number; name: string };
 export type Student = {
   id: number;
+  studentUuid?: string | null;
   firstName: string;
   lastName: string;
   gradeId: number;

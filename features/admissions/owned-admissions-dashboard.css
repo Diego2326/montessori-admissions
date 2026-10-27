@@ -1,0 +1,31 @@
+.owned-dashboard { max-width: 1440px; margin: 0 auto; display: grid; gap: 24px; }
+.owned-dashboard-hero { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 30px; border-radius: 24px; background: linear-gradient(125deg, #123d88, #255db0); color: white; }
+.owned-dashboard-hero h1 { margin: 8px 0; font-size: clamp(34px, 4vw, 48px); }
+.owned-dashboard-hero p { max-width: 700px; margin: 0; color: #e1eaff; line-height: 1.55; }
+.owned-dashboard-hero-actions { display:flex; flex:0 0 auto; flex-wrap:wrap; justify-content:flex-end; gap:10px; }
+.owned-dashboard-hero .button { flex: 0 0 auto; background: white; color: #19478e; }
+.owned-dashboard-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.owned-dashboard-stats article { display: grid; gap: 8px; padding: 20px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }
+.owned-dashboard-stats span { color: var(--muted); font-size: 14px; }
+.owned-dashboard-stats strong { color: var(--primary); font-size: 30px; }
+.owned-dashboard-list { display: grid; gap: 18px; padding: 24px; border: 1px solid var(--border); border-radius: 22px; background: var(--surface); }
+.owned-dashboard-tools { display: flex; align-items: end; justify-content: space-between; gap: 18px; }
+.owned-dashboard-tools h2 { margin: 5px 0 0; }
+.owned-dashboard-tools input { width: min(100%, 360px); min-height: 48px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-soft); color: var(--text); }
+.owned-dashboard-tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--border); }
+.owned-dashboard-tabs button { min-height: 44px; padding: 8px 16px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font-weight: 700; }
+.owned-dashboard-tabs button[aria-selected="true"] { border-bottom-color: var(--primary); color: var(--primary); }
+.owned-enrollment-list { display: grid; gap: 12px; }
+.owned-enrollment-row { display: grid; gap: 16px; padding: 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface-soft); }
+.owned-enrollment-main { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
+.owned-enrollment-main h3 { margin: 0 0 5px; }
+.owned-enrollment-main p { margin: 0; color: var(--muted); }
+.owned-status { flex: 0 0 auto; padding: 7px 11px; border-radius: 99px; font-size: 12px; font-weight: 800; }
+.owned-status.is-active { background: #e3f5e9; color: #28613d; }
+.owned-status.is-pending { background: #fff2d9; color: #805d1d; }
+.owned-enrollment-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.owned-enrollment-actions .button { min-height: 42px; }
+.owned-actions-hint { color: var(--muted); font-size: 13px; }
+.owned-dashboard-empty { padding: 24px; color: var(--muted); text-align: center; }
+@media (max-width: 850px) { .owned-dashboard-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .owned-dashboard-tools { align-items: stretch; flex-direction: column; } .owned-dashboard-tools input { width: 100%; } }
+@media (max-width: 620px) { .owned-dashboard-hero { align-items: stretch; flex-direction: column; padding: 24px; } .owned-dashboard-hero-actions { align-items:stretch; flex-direction:column; } .owned-dashboard-hero .button { width: 100%; } .owned-dashboard-list { padding: 16px; } .owned-enrollment-main { flex-direction: column; } .owned-enrollment-actions { align-items: stretch; flex-direction: column; } .owned-enrollment-actions .button { width: 100%; } }

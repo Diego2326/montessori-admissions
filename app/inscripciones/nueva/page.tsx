@@ -6,12 +6,13 @@ import { WorkspaceShell } from "@/components/WorkspaceShell";
 
 export const dynamic = "force-dynamic";
 
-type Search = Promise<{ familyId?: string; studentId?: string; mode?: string }>;
+type Search = Promise<{ familyId?: string; studentId?: string; mode?: string; enrollmentId?: string; action?: string }>;
 
 export default async function NewAdmissionPage({ searchParams }: { searchParams: Search }) {
   if (!isDemoMode()) await requireAdmissionsSession();
   if (process.env.ENROLLMENT_API_MODE === "clean" && process.env.ENROLLMENT_API_URL) {
-    return <WorkspaceShell current="Inscripciones"><OwnedEnrollmentFlow /></WorkspaceShell>;
+    const params = await searchParams;
+    return <WorkspaceShell current="Inscripciones"><OwnedEnrollmentFlow initialEnrollmentId={params.enrollmentId} initialAction={params.action} /></WorkspaceShell>;
   }
   const params = await searchParams;
   const mode = params.mode === "reinscription" ? "REINSCRIPTION" : params.mode === "new" ? "NEW_INCOME" : null;
