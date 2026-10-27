@@ -13,7 +13,9 @@ type IconName =
   | "receipt"
   | "clock"
   | "plus"
-  | "close";
+  | "close"
+  | "link"
+  | "copy";
 const paths: Record<IconName, React.ReactNode> = {
   spark: (
     <>
@@ -72,6 +74,8 @@ const paths: Record<IconName, React.ReactNode> = {
   ),
   plus: <path d="M12 4v16M4 12h16" />,
   close: <path d="M5 5 19 19M19 5 5 19" />,
+  link: <path d="M10 13a5 5 0 0 0 7.1 0l3-3A5 5 0 0 0 13 2.9l-1.7 1.7M14 11a5 5 0 0 0-7.1 0l-3 3A5 5 0 0 0 11 21.1l1.7-1.7" />,
+  copy: <><rect x="8" y="8" width="13" height="13" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></>,
 };
 export function AppIcon({
   name,

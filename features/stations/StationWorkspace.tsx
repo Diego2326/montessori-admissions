@@ -16,10 +16,11 @@ import {
 } from "@/lib/operations/types";
 import { OrderComposer } from "./OrderComposer";
 import { OrderDetails } from "./OrderDetails";
+import type { StaffAccess } from "@/lib/auth/access";
 
 export type Station = "BOOKS" | "UNIFORMS";
 type Filter = "new" | "preparing" | "ready" | "pending" | "done";
-export function StationWorkspace({ station, initialStudentUuid }: { station: Station; initialStudentUuid?: string }) {
+export function StationWorkspace({ station, initialStudentUuid, access }: { station: Station; initialStudentUuid?: string; access: StaffAccess }) {
   const title = station === "BOOKS" ? "Libros" : "Uniformes";
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -137,7 +138,7 @@ export function StationWorkspace({ station, initialStudentUuid }: { station: Sta
   const selected = orders.find((order) => order.id === selectedId) ?? null;
   const editing = orders.find((order) => order.id === editingId) ?? null;
   return (
-    <WorkspaceShell current={title}>
+    <WorkspaceShell current={title} access={access}>
       <div className={`hero hero-${station.toLowerCase()}`}>
         <div className="hero-copy">
           <span className="eyebrow">

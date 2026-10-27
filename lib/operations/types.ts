@@ -26,8 +26,54 @@ export type EnrollmentProfile = Record<
   string,
   string | number | null | undefined
 >;
-export type FamilySummary = { id: number; name: string; reviewStatus: string };
+export type FamilySummary = {
+  id: number;
+  name: string;
+  reviewStatus: string;
+  activeStudents?: { firstName: string; lastName: string; currentGrade: string | null; studentId: number | null; linkSource?: string | null }[];
+};
 export type FamilyIntake = FamilySummary & { profile: EnrollmentProfile };
+export type PreEnrollmentLink = {
+  id: number;
+  familyId: number;
+  familyName: string;
+  recipientType: string;
+  recipientName: string;
+  createdAt: string;
+  expiresAt: string;
+  revokedAt?: string | null;
+  lastAccessAt?: string | null;
+  responseSubmittedAt?: string | null;
+  wantsEnroll?: boolean | null;
+  status: string;
+};
+export type CreatedPreEnrollmentLink = Pick<PreEnrollmentLink, "id" | "familyId" | "familyName" | "recipientType" | "recipientName" | "createdAt" | "expiresAt"> & { url: string };
+export type PreEnrollmentSubmission = {
+  id: number;
+  linkId: number;
+  familyId: number;
+  familyName: string;
+  recipientType: string;
+  recipientName: string;
+  wantsEnroll: boolean;
+  selectedStudentPublicIds: string[];
+  submittedAt: string;
+  profile: EnrollmentProfile;
+  students: {
+    publicId: string;
+    firstName: string;
+    lastName: string;
+    birthDate: string | null;
+    selected: boolean;
+    currentGrade: string | null;
+  }[];
+};
+export type PreEnrollmentSubmissionPage = {
+  items: PreEnrollmentSubmission[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
 export type LegacyContractDetails = {
   contractId: number;
   representativeFirstName: string;

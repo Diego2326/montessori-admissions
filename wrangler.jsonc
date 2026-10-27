@@ -8,8 +8,6 @@
   "main": "./worker/index.ts",
   "vars": {
     "ADMISSIONS_API_URL": "https://montessori-lms-api-625997821641.northamerica-south1.run.app",
-    "ENROLLMENT_API_URL": "https://montessori-enrollment-api-625997821641.northamerica-south1.run.app",
-    "ENROLLMENT_API_MODE": "clean",
     "ADMISSIONS_DEMO_MODE": "false",
     "NEXT_PUBLIC_ADMISSIONS_DEMO_MODE": "false"
   },

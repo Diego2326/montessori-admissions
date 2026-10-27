@@ -6,6 +6,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { save } from "@/lib/operations/client";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
 import type { Enrollment, EnrollmentProfile, FamilyIntake } from "@/lib/operations/types";
+import { FamilyPreEnrollmentLinks } from "./FamilyPreEnrollmentLinks";
 import {
   civilStatusOptions,
   nationalityOptions,
@@ -20,6 +21,7 @@ type Props = {
   unassigned: AdmissionCandidate[];
   enrollmentStatuses: Map<number, string>;
   enrollments: Enrollment[];
+  canManageEnrollment: boolean;
   onBack: () => void;
   onUpdated: (family: FamilyIntake) => void;
   onOpenChild: (candidate: AdmissionCandidate | null, profile: EnrollmentProfile) => void;
@@ -49,7 +51,7 @@ const representativeFields = [
   ["representativeMobilePhone", "Celular"],
 ] as const;
 
-export function FamilyIntakePanel({ family, students, unassigned, enrollmentStatuses, enrollments, onBack, onUpdated, onOpenChild, onAttachStudent }: Props) {
+export function FamilyIntakePanel({ family, students, unassigned, enrollmentStatuses, enrollments, canManageEnrollment, onBack, onUpdated, onOpenChild, onAttachStudent }: Props) {
   const [name, setName] = useState(family.name);
   const [profile, setProfile] = useState<EnrollmentProfile>(family.profile);
   const [busy, setBusy] = useState(false);
@@ -154,12 +156,12 @@ export function FamilyIntakePanel({ family, students, unassigned, enrollmentStat
         </button>
       </section>
 
+      <FamilyPreEnrollmentLinks familyId={family.id} onError={setError} />
+
       <section className="family-panel">
         <div className="section-heading">
           <div><span className="eyebrow">HIJOS</span><h2>Inscripciones de la familia</h2></div>
-          <button className="button button-primary" type="button" disabled={busy} onClick={() => void openChild(null)}>
-            <AppIcon name="plus" size={18} /> Agregar alumno
-          </button>
+          {canManageEnrollment && <button className="button button-primary" type="button" disabled={busy} onClick={() => void openChild(null)}><AppIcon name="plus" size={18} /> Agregar alumno</button>}
         </div>
         <div className="family-children">
           {students.map((child) => {
@@ -169,12 +171,13 @@ export function FamilyIntakePanel({ family, students, unassigned, enrollmentStat
               <span className={`status-pill ${enrollmentStatuses.get(child.id) === "ACTIVO" ? "success" : "waiting"}`}>
                 {enrollmentStatuses.get(child.id) === "ACTIVO" ? "Inscrito" : enrollmentStatuses.get(child.id) === "PENDIENTE_PAGO" ? "Pendiente de pago" : enrollmentStatuses.get(child.id) === "PENDIENTE_FIRMA" ? "Pendiente de firma" : "Por inscribir"}
               </span>
-              <button className="button button-soft" type="button" disabled={busy} onClick={() => void openChild(child)}>Editar inscripción</button>
+              {canManageEnrollment && <button className="button button-soft" type="button" disabled={busy} onClick={() => void openChild(child)}>Editar inscripción</button>}
               {enrollment && <a className="button button-primary" href={`/api/operations/enrollments/${enrollment.id}/contract.pdf`} target="_blank" rel="noreferrer">Generar contrato</a>}
             </article>;
           })}
           {students.length === 0 && <p className="muted">Agrega el primer alumno de esta familia.</p>}
         </div>
+        {!canManageEnrollment && <p className="muted">Tu cuenta puede revisar y compartir la información familiar. Para editar inscripciones o contratos solicita acceso al área de Inscripciones.</p>}
         {unassigned.length > 0 && <div className="family-attach">
           <label className="field-label">Vincular alumno existente
             <select value={studentToAttach} onChange={(event) => setStudentToAttach(Number(event.target.value))}>

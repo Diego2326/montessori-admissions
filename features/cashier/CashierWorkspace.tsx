@@ -12,6 +12,7 @@ import {
   type SchoolYear,
 } from "@/lib/operations/types";
 import { ReceiptView } from "./ReceiptView";
+import type { StaffAccess } from "@/lib/auth/access";
 
 type Account = {
   key: string;
@@ -24,7 +25,7 @@ type Account = {
   }[];
   total: number;
 };
-export function CashierWorkspace() {
+export function CashierWorkspace({ access }: { access: StaffAccess }) {
   const [schoolYearId, setSchoolYearId] = useState(0);
   const [charges, setCharges] = useState<CheckoutCharge[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
@@ -155,7 +156,7 @@ export function CashierWorkspace() {
     }
   }
   return (
-    <WorkspaceShell current="Caja">
+    <WorkspaceShell current="Contabilidad · Caja" access={access}>
       <div className="hero hero-cashier">
         <div className="hero-copy">
           <span className="eyebrow">CAJA · CICLO 2027</span>

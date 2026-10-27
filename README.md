@@ -9,7 +9,45 @@ El estado, las prioridades y la evidencia de validación se mantienen en
 
 Aplicación de mostrador para el ciclo escolar 2027. Atiende cuatro estaciones: Inscripciones, Libros, Uniformes y Caja.
 
-## Flujo
+## Flujo de trabajo del personal
+
+Admisiones es una consola interna para el personal del colegio. Las familias
+pueden completar la preinscripción en casa, pero sus respuestas entran a la
+bandeja **Desde casa** para que recepción o inscripción revise el expediente y
+continúe el proceso dentro del colegio.
+
+El panel separa **Alumnos nuevos**, **Reinscripción**, **Desde casa**,
+**Familias** y **Contratos**. El expediente familiar permite corregir datos,
+relacionar alumnos, generar enlaces de preinscripción y abrir la inscripción
+individual de cada alumno. El contrato y la firma se manejan por alumno.
+
+El flujo de referencia es:
+
+- **Alumno nuevo:** contacto e información → formulario en el colegio o desde
+  casa → visita y atención → inscripción → revisión de documentos → firma →
+  pago → libros y uniformes → inscrito.
+- **Alumno antiguo:** recepción → verificación del alumno y solvencia →
+  actualización de datos → reinscripción → firma → pago → libros y uniformes.
+
+El dashboard refleja estados que ya conoce la API (firma, pago e inscripción)
+y deja el resto del flujo como guía operativa; no registra visitas o revisión de
+documentos como estados nuevos.
+
+## Acceso del personal
+
+El menú y las acciones se muestran según los permisos devueltos por `/users/me`:
+
+- **Inscripciones:** `ADMISSIONS_MANAGE` y `ENROLLMENTS_MANAGE`.
+- **Ventas:** `ADMISSIONS_MANAGE` sin `ENROLLMENTS_MANAGE` (el API LMS actual
+  protege Libros y Uniformes con `ADMISSIONS_MANAGE`).
+- **Contabilidad:** `FINANCE_MANAGE`.
+- **Administración:** administrador, con acceso a todas las áreas.
+
+La API sigue validando los permisos en cada operación. Si un usuario no cuenta
+con un área habilitada, la aplicación lo dirige a una de las áreas que sí tiene
+asignadas.
+
+## Flujo entre estaciones
 
 1. Inscripciones guarda el expediente, el contrato y el estado del alumno. No crea pedidos de productos.
 2. Libros y Uniformes registran ventas por separado para alumnos inscritos. Los pedidos se vinculan al alumno y la familia registrada; las estaciones preparan artículos disponibles y anotan faltantes.
@@ -24,11 +62,10 @@ Las estaciones se actualizan por WebSocket; un refresco de respaldo ocurre cada 
 
 ## Desarrollo
 
-Para conectar el servicio de inscripciones en modo limpio, configurar
-`ENROLLMENT_API_URL` y `ENROLLMENT_API_MODE=clean`. Así `/v2/**` llega al
-servicio nuevo y las rutas del mostrador que aún usan el esquema anterior
-permanecen en `ADMISSIONS_API_URL`. El modo limpio no traslada por sí mismo
-familias, contratos ni caja.
+Toda la operación del mostrador usa `ADMISSIONS_API_URL`, conectado al LMS que
+ya contiene las familias y los alumnos importados. La ruta antigua de
+inscripción limpia redirige al flujo vigente y la API nueva no forma parte de
+este panel.
 
 1. Copia `.env.example` a `.env.local` y configura la URL de la API.
 2. Ejecuta `npm install` y `npm run dev`.

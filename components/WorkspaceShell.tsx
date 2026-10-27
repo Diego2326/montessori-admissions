@@ -5,22 +5,32 @@ import { AppIcon } from "./AppIcon";
 import { SignOutButton } from "./SignOutButton";
 import { LiveUpdatesProvider } from "./LiveUpdatesProvider";
 import { LiveIndicator } from "./LiveIndicator";
+import type { StaffAccess } from "@/lib/auth/access";
 
 const stations = [
-  { href: "/", label: "Inscripciones", icon: "users" },
-  { href: "/libros", label: "Libros", icon: "book" },
-  { href: "/uniformes", label: "Uniformes", icon: "shirt" },
-  { href: "/caja", label: "Caja", icon: "wallet" },
+  { href: "/", label: "Inscripciones", icon: "users", permission: "workflow" },
+  { href: "/libros", label: "Libros", icon: "book", permission: "sales" },
+  { href: "/uniformes", label: "Uniformes", icon: "shirt", permission: "sales" },
+  { href: "/caja", label: "Contabilidad · Caja", icon: "wallet", permission: "finance" },
 ] as const;
 
 export function WorkspaceShell({
   current,
   children,
+  access,
 }: {
   current: string;
   children: ReactNode;
+  access: StaffAccess;
 }) {
   const demoMode = process.env.NEXT_PUBLIC_ADMISSIONS_DEMO_MODE === "true";
+  const visibleStations = stations.filter((station) => access[station.permission]);
+  const workAreas = [
+    access.isAdmin && "Administración",
+    access.workflow && "Inscripciones",
+    access.sales && "Ventas",
+    access.finance && "Contabilidad",
+  ].filter((area): area is string => Boolean(area));
   return (
     <LiveUpdatesProvider>
       <div className="workspace">
@@ -42,8 +52,10 @@ export function WorkspaceShell({
             </span>
           </Link>
           <nav className="station-nav" aria-label="Estaciones">
-            <span className="nav-caption">ESTACIONES</span>
-            {stations.map((station) => (
+            <span className="nav-caption">ÁREAS DE TRABAJO</span>
+            {workAreas.length > 0 && <div className="staff-work-areas">{workAreas.map((area) => <span key={area}>{area}</span>)}</div>}
+            <span className="nav-caption nav-caption-spaced">MÓDULOS</span>
+            {visibleStations.map((station) => (
               <Link
                 key={station.href}
                 href={station.href}
@@ -58,6 +70,7 @@ export function WorkspaceShell({
             ))}
           </nav>
           <div className="sidebar-foot">
+            <div className="staff-session"><small>SESIÓN DEL PERSONAL</small><strong>{access.userName}</strong></div>
             <div className="cycle-chip">
               <AppIcon name="spark" size={17} />
               <span>
@@ -84,7 +97,7 @@ export function WorkspaceShell({
           </main>
         </div>
         <nav className="mobile-nav" aria-label="Estaciones">
-          {stations.map((station) => (
+          {visibleStations.map((station) => (
             <Link
               key={station.href}
               href={station.href}
