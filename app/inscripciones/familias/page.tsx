@@ -9,5 +9,5 @@ export default async function ImportedFamiliesPage() {
   const token = await requireAdmissionsSession();
   const overview = await getAdmissionsOverview(token);
   if (overview.connection === "unauthorized") redirect("/login");
-  return <AdmissionsWorkspace overview={overview} cleanEnrollmentEnabled />;
+  return <AdmissionsWorkspace overview={overview} />;
 }

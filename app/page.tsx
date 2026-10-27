@@ -3,7 +3,6 @@ import { getAdmissionsOverview } from "@/lib/admissions/repository";
 import { redirect } from "next/navigation";
 import { requireAdmissionsSession } from "@/lib/auth/session";
 import { getDemoOverview, isDemoMode } from "@/lib/operations/demo";
-import { OwnedAdmissionsDashboard } from "@/features/admissions/OwnedAdmissionsDashboard";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +13,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ f
     return <AdmissionsWorkspace overview={getDemoOverview()} initialFamilyId={initialFamilyId} />;
   }
   const token = await requireAdmissionsSession();
-  if (process.env.ENROLLMENT_API_MODE === "clean" && process.env.ENROLLMENT_API_URL) {
-    return <OwnedAdmissionsDashboard />;
-  }
   const overview = await getAdmissionsOverview(token);
   if (overview.connection === "unauthorized") redirect("/login");
   return <AdmissionsWorkspace overview={overview} initialFamilyId={initialFamilyId} />;
