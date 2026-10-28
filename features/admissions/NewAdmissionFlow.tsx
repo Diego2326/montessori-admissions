@@ -1,42 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { AppIcon } from "@/components/AppIcon";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { operation, save } from "@/lib/operations/client";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
-import type { Bootstrap, CountryCallingCode, Enrollment, EnrollmentProfile, FamilyIntake, FamilySummary } from "@/lib/operations/types";
+import type { Bootstrap, CountryCallingCode, Enrollment, EnrollmentProfile, FamilyIntake, FamilySummary, PreEnrollmentSubmissionPage } from "@/lib/operations/types";
 import { DatePartsField } from "./DatePartsField";
-import { attendedByOptions, civilStatusOptions, nationalityOptions, optionsWithExistingValue, representativeDocumentTypeOptions, representativeTypeOptions, zacapaMunicipalityOptions } from "./normalizedOptions";
+import { guatemalaLocations } from "./guatemalaLocations";
+import { civilStatusOptions, nationalityOptions, optionsWithExistingValue, representativeTypeOptions } from "./normalizedOptions";
 
 type EntryType = "REINSCRIPTION" | "NEW_INCOME";
-type StudentDraft = { key: string; studentId?: number; studentUuid?: string; historicalIntakeId?: number; firstName: string; lastName: string; currentGrade: string; gradeId: number; section: string; birthDate: string; studentDpi: string; phone: string; phoneCountryCode?: string; imported: boolean };
+type EmergencyContact = { name: string; phone: string; alternatePhone: string };
+type StudentDraft = { key: string; studentId?: number; studentUuid?: string; historicalIntakeId?: number; firstName: string; lastName: string; currentGrade: string; gradeId: number; birthDate: string; studentDpi: string; phone: string; phoneCountryCode?: string; imported: boolean; enroll: boolean; alreadyEnrolled?: boolean };
 type HistoricalIntake = { id: number; sourceRowId: number; schoolYear: number; firstName: string; lastName: string; birthDate: string | null; intakeDocumentNumber: string | null; sourceGrade: string | null; motherName: string | null; motherWorkplace: string | null; motherMobile: string | null; motherDpi: string | null; fatherName: string | null; fatherOccupation: string | null; fatherWorkplace: string | null; fatherMobile: string | null; address: string | null; city: string | null; otherContact: string | null; contactMobile: string | null; attendedBy: string | null; matchedStudentId: number | null };
-const motherFields = [
-  ["motherName", "Nombre completo de la madre"], ["motherDpi", "DPI de la madre"], ["motherPhone", "Celular de la madre"], ["motherEmail", "Correo de la madre"], ["motherOccupation", "Ocupación de la madre"], ["motherWorkplace", "Lugar de trabajo de la madre"],
-] as const;
-const fatherFields = [
-  ["fatherName", "Nombre completo del padre"], ["fatherDpi", "DPI del padre"], ["fatherPhone", "Celular del padre"], ["fatherHomePhone", "Teléfono de casa"], ["fatherOccupation", "Ocupación del padre"], ["fatherWorkplace", "Lugar de trabajo del padre"],
-] as const;
-const homeFields = [
-  ["address", "Dirección de residencia"], ["city", "Municipio o ciudad"], ["emergencyContactName", "Contacto de emergencia"], ["emergencyContactPhone", "Teléfono del contacto de emergencia"], ["otherContact", "Nombre de contacto alternativo (opcional)"], ["emergencyPhone", "Teléfono alternativo (opcional)"], ["attendedBy", "Personal que atendió"],
-] as const;
-const representativeIdentityFields = [
-  ["representativeFirstName", "Nombres"], ["representativeLastName", "Apellidos"], ["representativeAge", "Edad"], ["representativeCivilStatus", "Estado civil"], ["representativeNationality", "Nacionalidad"], ["representativeOccupation", "Profesión u oficio"], ["representativeDocumentType", "Tipo de documento"], ["representativeDocument", "Número de documento"],
-] as const;
-const representativeContactFields = [
-  ["representativeResidence", "Dirección de residencia"], ["representativeHomePhone", "Teléfono de casa"], ["representativeOfficePhone", "Teléfono de oficina"], ["representativeMobilePhone", "Celular"],
-] as const;
-const sharedProfileKeys = ["address", "city", "emergencyPhone", "emergencyContactName", "emergencyContactPhone", "motherName", "motherPhone", "motherEmail", "motherDpi", "motherOccupation", "motherWorkplace", "fatherName", "fatherPhone", "fatherHomePhone", "fatherDpi", "fatherOccupation", "fatherWorkplace", "otherContact", "representativeType", "representativeFirstName", "representativeLastName", "representativeAge", "representativeCivilStatus", "representativeNationality", "representativeOccupation", "representativeDocumentType", "representativeDocument", "representativeResidence", "representativeHomePhone", "representativeOfficePhone", "representativeMobilePhone"] as const;
+const publicDocumentTypeOptions = [{ value: "DPI", label: "DPI" }, { value: "PASAPORTE", label: "Pasaporte" }] as const;
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const orderedOptions: Record<string, readonly (string | { value: string; label: string })[]> = {
   representativeType: representativeTypeOptions,
   representativeCivilStatus: civilStatusOptions,
   representativeNationality: nationalityOptions,
-  representativeDocumentType: representativeDocumentTypeOptions,
-  city: zacapaMunicipalityOptions,
-  attendedBy: attendedByOptions,
+  representativeDocumentType: publicDocumentTypeOptions,
 };
 const promotion = ["Nursery", "Prekinder", "Kinder", "Preparatoria", "Primero primaria", "Segundo primaria", "Tercero primaria", "Cuarto primaria", "Quinto primaria", "Sexto primaria", "Primero básico", "Segundo básico", "Tercero básico", "Cuarto bachillerato", "Quinto bachillerato"];
 const localDate = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`; };
@@ -50,8 +36,8 @@ const formatPhone = (raw: string, dialCode = "+502", expectedDigits = 8) => {
 const formatDpi = (raw: string) => {
   const digits = raw.replace(/\D/g, "").slice(0, 13);
   if (digits.length <= 4) return digits;
-  if (digits.length <= 9) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}-${digits.slice(4, 9)}-${digits.slice(9)}`;
+  if (digits.length <= 9) return `${digits.slice(0, 4)} ${digits.slice(4)}`;
+  return `${digits.slice(0, 4)} ${digits.slice(4, 9)} ${digits.slice(9)}`;
 };
 const normalizeGrade = (value: string) => value.toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\./g, "").trim();
 function promotedGrade(current: string, grades: Bootstrap["gradeLevels"]) {
@@ -65,11 +51,64 @@ function promotedGrade(current: string, grades: Bootstrap["gradeLevels"]) {
   return grades.find((grade) => normalizeGrade(grade.name) === normalizeGrade(next))?.id ?? 0;
 }
 
+async function latestPreEnrollmentForFamily(familyId: number) {
+  const pageSize = 100;
+  const firstPage = await operation<PreEnrollmentSubmissionPage>(`admission-workflow/pre-enrollment-responses?page=1&pageSize=${pageSize}&decision=all&sort=newest`);
+  const pageCount = Math.ceil(firstPage.total / pageSize);
+  const findLatest = (items: PreEnrollmentSubmissionPage["items"]) => items
+    .filter((item) => item.familyId === familyId)
+    .sort((left, right) => Date.parse(right.submittedAt) - Date.parse(left.submittedAt) || right.id - left.id)[0] ?? null;
+  const firstMatch = findLatest(firstPage.items);
+  if (firstMatch || pageCount <= 1) return firstMatch;
+  for (let startPage = 2; startPage <= pageCount; startPage += 5) {
+    const pageNumbers = Array.from({ length: Math.min(5, pageCount - startPage + 1) }, (_, index) => startPage + index);
+    const pages = await Promise.all(pageNumbers.map((page) => operation<PreEnrollmentSubmissionPage>(`admission-workflow/pre-enrollment-responses?page=${page}&pageSize=${pageSize}&decision=all&sort=newest`)));
+    const match = findLatest(pages.flatMap((page) => page.items));
+    if (match) return match;
+  }
+  return null;
+}
+
+function hydrateParentRepresentative(profile: EnrollmentProfile): EnrollmentProfile {
+  const type = String(profile.representativeType ?? "").toUpperCase();
+  const prefix = ["MOTHER", "MADRE", "MAMA"].includes(type) ? "mother" : ["FATHER", "PADRE", "PAPA"].includes(type) ? "father" : null;
+  const normalizedProfile: EnrollmentProfile = { ...profile, city: profile.municipality || profile.city, municipality: profile.municipality || profile.city };
+  if (!prefix) return ["OTHER", "OTRO"].includes(type) ? { ...normalizedProfile, representativeType: "OTHER" } : normalizedProfile;
+  const parentName = String(normalizedProfile[`${prefix}Name`] ?? "").trim();
+  const [firstName = "", ...lastNames] = parentName.split(/\s+/);
+  return {
+    ...normalizedProfile,
+    representativeType: prefix === "mother" ? "MOTHER" : "FATHER",
+    representativeName: normalizedProfile.representativeName || parentName,
+    representativeFirstName: normalizedProfile.representativeFirstName || firstName,
+    representativeLastName: normalizedProfile.representativeLastName || lastNames.join(" "),
+    representativeBirthDate: normalizedProfile[`${prefix}BirthDate`] || normalizedProfile.representativeBirthDate,
+    representativeAge: calculateAgeValue(String(normalizedProfile[`${prefix}BirthDate`] || normalizedProfile.representativeBirthDate || "")),
+    representativeEmail: normalizedProfile[`${prefix}Email`] || normalizedProfile.representativeEmail,
+    representativeWorkplace: normalizedProfile[`${prefix}Workplace`] || normalizedProfile.representativeWorkplace,
+    representativeOccupation: normalizedProfile[`${prefix}Occupation`] || normalizedProfile.representativeOccupation,
+    representativeDocumentType: normalizedProfile[`${prefix}Dpi`] ? "DPI" : normalizedProfile.representativeDocumentType,
+    representativeDocument: normalizedProfile[`${prefix}Dpi`] || normalizedProfile.representativeDocument,
+    representativeResidence: normalizedProfile.address || normalizedProfile.representativeResidence,
+    representativeMobilePhone: normalizedProfile[`${prefix}Phone`] || normalizedProfile.representativeMobilePhone,
+    representativeHomePhone: normalizedProfile[`${prefix}HomePhone`] || normalizedProfile.representativeHomePhone,
+    representativeOfficePhone: normalizedProfile[`${prefix}OfficePhone`] || normalizedProfile.representativeOfficePhone,
+  };
+}
+
+function calculateAgeValue(value: string): number | null {
+  if (!value) return null;
+  const birthDate = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(birthDate.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  if (today.getMonth() < birthDate.getMonth() || (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate())) age -= 1;
+  return age >= 0 ? age : null;
+}
+
 export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = null, initialMode = null }: { initialFamilyId?: number | null; initialStudentId?: number | null; initialMode?: EntryType | null }) {
   const router = useRouter();
-  const [entryType, setEntryType] = useState<EntryType | null>(initialMode);
-  const [step, setStep] = useState(initialMode === "REINSCRIPTION" ? 7 : initialMode ? 1 : 0);
-  const [families, setFamilies] = useState<FamilySummary[]>([]);
+  const entryType = initialMode ?? "NEW_INCOME";
   const [candidates, setCandidates] = useState<AdmissionCandidate[]>([]);
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
   const [countryCodes, setCountryCodes] = useState<CountryCallingCode[]>([]);
@@ -77,14 +116,16 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
   const [familyId, setFamilyId] = useState<number | null>(initialFamilyId);
   const [familyName, setFamilyName] = useState("");
   const [profile, setProfile] = useState<EnrollmentProfile>({ submissionDate: localDate() });
+  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([{ name: "", phone: "", alternatePhone: "" }]);
   const [search, setSearch] = useState("");
   const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(initialStudentId);
-  const [draft, setDraft] = useState<StudentDraft>({ key: "student-1", firstName: "", lastName: "", currentGrade: "", gradeId: 0, section: "", birthDate: "", studentDpi: "", phone: "", phoneCountryCode: "GT", imported: false });
+  const [draft, setDraft] = useState<StudentDraft>({ key: "student-1", firstName: "", lastName: "", currentGrade: "", gradeId: 0, birthDate: "", studentDpi: "", phone: "", phoneCountryCode: "GT", imported: false, enroll: true });
   const [students, setStudents] = useState<StudentDraft[]>([]);
   const [historicalIntakes, setHistoricalIntakes] = useState<HistoricalIntake[]>([]);
   const [historicalSearch, setHistoricalSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let active = true;
@@ -93,17 +134,23 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
       operation<{ candidates: AdmissionCandidate[] }>("admission-workflow/2027/overview"),
       operation<Bootstrap>("enrollments/bootstrap"),
       operation<CountryCallingCode[]>("country-codes"),
-    ]).then(([familyRows, overview, setup, countryRows]) => {
+    ]).then(async ([familyRows, overview, setup, countryRows]) => {
       if (!active) return;
-      setFamilies(familyRows); setCandidates(overview.candidates); setBootstrap(setup);
+      setCandidates(overview.candidates); setBootstrap(setup);
       setCountryCodes(countryRows);
-      setPhoneCountries(Object.fromEntries(["motherPhone", "fatherPhone", "fatherHomePhone", "emergencyPhone", "emergencyContactPhone", "representativeHomePhone", "representativeOfficePhone", "representativeMobilePhone"].map((key) => [key, "GT"])));
+      setPhoneCountries(Object.fromEntries(["motherPhone", "motherHomePhone", "motherOfficePhone", "fatherPhone", "fatherHomePhone", "fatherOfficePhone", "emergencyPhone", "emergencyContactPhone", "representativeHomePhone", "representativeOfficePhone", "representativeMobilePhone"].map((key) => [key, "GT"])));
       const family = familyRows.find((item) => item.id === initialFamilyId);
       if (family) setFamilyName(family.name);
-      if (initialFamilyId) void chooseFamily(initialFamilyId, familyRows);
       if (initialStudentId) {
         const candidate = overview.candidates.find((item) => item.id === initialStudentId);
-        if (candidate) setSearch(`${candidate.firstName} ${candidate.lastName}`);
+        if (candidate) {
+          setSearch(`${candidate.firstName} ${candidate.lastName}`);
+          if (entryType === "REINSCRIPTION" && candidate.familyId) {
+            await loadFamilyStudents(candidate, overview.candidates, setup, familyRows);
+          } else {
+            await importStudent(initialStudentId, overview.candidates, setup);
+          }
+        }
       }
     }).catch((cause) => setError(cause instanceof Error ? cause.message : "No se pudieron cargar los datos demo"));
     return () => { active = false; };
@@ -112,33 +159,136 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
   }, []);
 
   const gradeOptions = bootstrap?.gradeLevels ?? [];
+  const departmentOptions = Object.keys(guatemalaLocations).sort((a, b) => a.localeCompare(b, "es"));
+  const municipalityOptions = profile.department && profile.department in guatemalaLocations
+    ? guatemalaLocations[profile.department as keyof typeof guatemalaLocations]
+    : [];
   const year = bootstrap?.schoolYears.find((item) => item.year === 2027);
-  const representativeFromParent = profile.representativeType === "MOTHER" || profile.representativeType === "FATHER";
-  const flowSteps = (entryType === "REINSCRIPTION" ? [0, 7, 1, 2, 3, 4, 5, 6, 8] : [0, 1, 2, 3, 4, 5, 6, 7, 8]).filter((page) => page !== 6 || !representativeFromParent);
-  const flowPosition = flowSteps.indexOf(step);
-  const previousStep = flowSteps[Math.max(0, flowPosition - 1)] ?? 0;
-  const nextStep = flowSteps[flowPosition + 1];
   const filteredCandidates = useMemo(() => candidates.filter((candidate) => {
     const needle = search.trim().toLocaleLowerCase("es");
     if (!needle) return false;
-    if (familyId && candidate.familyId && candidate.familyId !== familyId) return false;
+    if (familyId && candidate.familyId !== familyId) return false;
     if (students.some((student) => student.studentId === candidate.id)) return false;
     const searchable = `${candidate.firstName} ${candidate.lastName} ${candidate.id}`.toLocaleLowerCase("es");
     return searchable.includes(needle);
   }), [candidates, familyId, search, students, year]);
 
-  async function chooseFamily(id: number, rows = families) {
-    setFamilyId(id);
-    const family = rows.find((item) => item.id === id);
-    if (family) setFamilyName(family.name);
+  async function loadFamilyStudents(selectedCandidate: AdmissionCandidate, candidateRows: AdmissionCandidate[], setup: Bootstrap, familyRows: FamilySummary[]) {
+    const selectedFamilyId = selectedCandidate.familyId;
+    if (!selectedFamilyId) return;
+    setFamilyId(selectedFamilyId);
+    const family = familyRows.find((item) => item.id === selectedFamilyId);
+    setFamilyName(family?.name ?? selectedCandidate.familyName ?? "");
+    setProfile({ submissionDate: localDate() });
+    setEmergencyContacts([{ name: "", phone: "", alternatePhone: "" }]);
+
+    let submission: PreEnrollmentSubmissionPage["items"][number] | null = null;
+    const warnings: string[] = [];
     try {
-      const detail = await operation<FamilyIntake>(`admission-workflow/families/${id}`);
-      setProfile((current) => ({ ...current, ...detail.profile }));
-      setFamilyName(detail.name);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "No se pudieron importar los datos familiares"); }
+      const latestSubmission = await latestPreEnrollmentForFamily(selectedFamilyId);
+      submission = latestSubmission;
+      if (latestSubmission) {
+        setFamilyName(latestSubmission.familyName || family?.name || selectedCandidate.familyName || "");
+        setProfile(hydrateParentRepresentative({ submissionDate: localDate(), ...latestSubmission.profile }));
+        const savedContacts = (latestSubmission.profile as EnrollmentProfile & { emergencyContacts?: EmergencyContact[] }).emergencyContacts;
+        const normalizedContacts = Array.isArray(savedContacts) && savedContacts.length
+          ? savedContacts.map((contact) => ({ name: contact.name ?? "", phone: formatPhone(contact.phone ?? ""), alternatePhone: formatPhone(contact.alternatePhone ?? "") }))
+          : latestSubmission.profile.emergencyContactName || latestSubmission.profile.emergencyContactPhone
+            ? [{ name: String(latestSubmission.profile.emergencyContactName ?? ""), phone: formatPhone(String(latestSubmission.profile.emergencyContactPhone ?? "")), alternatePhone: formatPhone(String(latestSubmission.profile.emergencyPhone ?? "")) }]
+            : [{ name: "", phone: "", alternatePhone: "" }];
+        setEmergencyContacts(normalizedContacts);
+      }
+    } catch {
+      warnings.push("No se pudo consultar la respuesta de preinscripción; se cargaron los datos del expediente escolar.");
+    }
+
+    const familyCandidates = candidateRows.filter((candidate) => candidate.familyId === selectedFamilyId && candidate.status !== "GRADUATED");
+    const members = familyCandidates.some((candidate) => candidate.id === selectedCandidate.id)
+      ? familyCandidates
+      : [selectedCandidate, ...familyCandidates];
+    const savedPreEnrollment = submission;
+    const loadedMembers = await Promise.all(members.map(async (candidate) => {
+      try {
+        return { candidate, history: await operation<Enrollment[]>(`students/${candidate.id}/enrollments`) };
+      } catch {
+        warnings.push(`No se pudo cargar el historial de ${candidate.firstName} ${candidate.lastName}.`);
+        return { candidate, history: [] as Enrollment[] };
+      }
+    }));
+
+    const loadedStudents = loadedMembers.map(({ candidate, history }) => {
+      const previous = history.filter((enrollment) => (enrollment.schoolYear ?? 0) < 2027).sort((left, right) => (right.schoolYear ?? 0) - (left.schoolYear ?? 0))[0];
+      const alreadyEnrolled = history.some((enrollment) => enrollment.schoolYear === 2027);
+      const candidateName = `${candidate.firstName} ${candidate.lastName}`.trim().toLocaleLowerCase("es");
+      const preEnrollmentStudent = savedPreEnrollment?.students.find((student) =>
+        (candidate.uuid && student.publicId.toLocaleLowerCase() === candidate.uuid.toLocaleLowerCase()) ||
+        `${student.firstName} ${student.lastName}`.trim().toLocaleLowerCase("es") === candidateName,
+      );
+      const currentGrade = preEnrollmentStudent?.currentGrade || candidate.currentGrade || previous?.gradeName || "";
+      const proposedGradeId = setup.gradeLevels.find((grade) => normalizeGrade(grade.name) === normalizeGrade(candidate.proposedGrade ?? ""))?.id ?? 0;
+      const publicId = preEnrollmentStudent?.publicId ?? candidate.uuid;
+      const selectedByFamily = Boolean(savedPreEnrollment?.wantsEnroll && (
+        preEnrollmentStudent?.selected || (publicId && savedPreEnrollment.selectedStudentPublicIds.some((id) => id.toLocaleLowerCase() === publicId.toLocaleLowerCase()))
+      ));
+      return {
+        key: `student-${candidate.id}`,
+        studentId: candidate.id,
+        studentUuid: candidate.uuid ?? preEnrollmentStudent?.publicId,
+        firstName: preEnrollmentStudent?.firstName.trim() || candidate.firstName.trim(),
+        lastName: preEnrollmentStudent?.lastName.trim() || candidate.lastName.trim(),
+        currentGrade,
+        gradeId: promotedGrade(currentGrade, setup.gradeLevels) || proposedGradeId,
+        birthDate: String(preEnrollmentStudent?.birthDate ?? candidate.birthDate ?? previous?.profile?.birthDate ?? ""),
+        studentDpi: String(previous?.profile?.studentDpi ?? ""),
+        phone: formatPhone(String(previous?.profile?.studentPhone ?? "")),
+        phoneCountryCode: "GT",
+        imported: Boolean(preEnrollmentStudent || previous),
+        enroll: alreadyEnrolled ? false : savedPreEnrollment ? selectedByFamily : candidate.id === selectedCandidate.id,
+        alreadyEnrolled,
+      } satisfies StudentDraft;
+    });
+
+    setStudents(loadedStudents);
+    setSelectedCandidateId(selectedCandidate.id);
+    setDraft({ key: "student-draft", firstName: "", lastName: "", currentGrade: "", gradeId: 0, birthDate: "", studentDpi: "", phone: "", phoneCountryCode: "GT", imported: false, enroll: true });
+    setSearch("");
+    setHistoricalIntakes([]);
+    if (warnings.length) setError(warnings.join(" "));
   }
 
-  function setValue(key: string, value: string | number | null) { setProfile((current) => ({ ...current, [key]: value })); }
+  function calculateAge(value: string) {
+    const birthDate = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(birthDate.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    if (today.getMonth() < birthDate.getMonth() || (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate())) age -= 1;
+    return age >= 0 ? age : null;
+  }
+  function setValue(key: string, value: string | number | null) {
+    setProfile((current) => {
+      const next: EnrollmentProfile = { ...current, [key]: value };
+      if (key === "department") { next.city = ""; next.municipality = ""; }
+      if (key === "city" || key === "municipality") { next.city = value; next.municipality = value; }
+      if (key === "address" && current.representativeType) next.representativeResidence = value;
+      if (key === "representativeResidence") next.address = value;
+      const parentPrefix = current.representativeType === "MOTHER" ? "mother" : current.representativeType === "FATHER" ? "father" : null;
+      const mirroredKeys: Record<string, string> = { phone: "representativeMobilePhone", email: "representativeEmail", occupation: "representativeOccupation", workplace: "representativeWorkplace", homePhone: "representativeHomePhone", officePhone: "representativeOfficePhone" };
+      if (parentPrefix && key.startsWith(parentPrefix)) {
+        const field = key.slice(parentPrefix.length);
+        const normalizedField = field ? field[0].toLocaleLowerCase() + field.slice(1) : "";
+        if (mirroredKeys[normalizedField]) next[mirroredKeys[normalizedField]] = value;
+      }
+      if (key === "motherBirthDate" && current.representativeType === "MOTHER") { next.representativeBirthDate = value; next.representativeAge = typeof value === "string" ? calculateAge(value) : null; }
+      if (key === "fatherBirthDate" && current.representativeType === "FATHER") { next.representativeBirthDate = value; next.representativeAge = typeof value === "string" ? calculateAge(value) : null; }
+      if (key === "representativeBirthDate") next.representativeAge = typeof value === "string" ? calculateAge(value) : null;
+      if ((key === "representativeFirstName" || key === "representativeLastName") && parentPrefix) {
+        const first = String(next.representativeFirstName ?? "").trim();
+        const last = String(next.representativeLastName ?? "").trim();
+        next[`${parentPrefix}Name`] = `${first} ${last}`.trim();
+      }
+      return next;
+    });
+  }
   function countryForPhone(key: string) {
     const parentPhone = profile.representativeType === "MOTHER" ? "motherPhone" : profile.representativeType === "FATHER" ? "fatherPhone" : null;
     const code = key === "representativeMobilePhone" && parentPhone ? phoneCountries[parentPhone] : phoneCountries[key];
@@ -149,31 +299,42 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
     setProfile((current) => {
       const isMother = value === "MOTHER" || value === "MADRE";
       const isFather = value === "FATHER" || value === "PADRE";
-      if (!isMother && !isFather) {
-        const previouslyParent = current.representativeType === "MOTHER" || current.representativeType === "FATHER";
-        return previouslyParent ? { ...current, representativeType: value, representativeName: "", representativeFirstName: "", representativeLastName: "", representativeDocument: "", representativeMobilePhone: "", representativeHomePhone: "" } : { ...current, representativeType: value };
-      }
+      if (!isMother && !isFather) return {
+        ...current, representativeType: value, representativeName: "", representativeFirstName: "", representativeLastName: "", representativeAge: null,
+        representativeBirthDate: "", representativeCivilStatus: "", representativeNationality: "Guatemala", representativeOccupation: "",
+        representativeWorkplace: "", representativeDocument: "", representativeDocumentType: "", representativeEmail: "",
+        representativeMobilePhone: "", representativeHomePhone: "", representativeOfficePhone: "", representativeResidence: "",
+      };
       const prefix = isMother ? "mother" : "father";
+      const sameRepresentative = current.representativeType === value;
       const fullName = String(current[`${prefix}Name`] || "").trim();
+      const [representativeFirstName = "", ...representativeLastNames] = fullName.split(/\s+/);
       return {
         ...current,
         representativeType: value,
         representativeName: fullName,
-        representativeFirstName: fullName,
-        representativeLastName: "",
-        representativeDocumentType: current[`${prefix}Dpi`] ? "DPI" : current.representativeDocumentType,
-        representativeDocument: current[`${prefix}Dpi`] || current.representativeDocument,
-        representativeOccupation: current[`${prefix}Occupation`] || current.representativeOccupation,
-        representativeResidence: current.address || current.representativeResidence,
-        representativeHomePhone: isFather ? current.fatherHomePhone || current.fatherPhone || current.representativeHomePhone : current.motherPhone || current.representativeHomePhone,
-        representativeMobilePhone: isFather ? current.fatherPhone || current.representativeMobilePhone : current.motherPhone || current.representativeMobilePhone,
+        representativeFirstName,
+        representativeLastName: representativeLastNames.join(" "),
+        representativeBirthDate: current[`${prefix}BirthDate`] || (sameRepresentative ? current.representativeBirthDate : ""),
+        representativeEmail: current[`${prefix}Email`] || (sameRepresentative ? current.representativeEmail : ""),
+        representativeCivilStatus: sameRepresentative ? current.representativeCivilStatus : "",
+        representativeNationality: sameRepresentative && current.representativeNationality ? current.representativeNationality : "Guatemala",
+        representativeWorkplace: current[`${prefix}Workplace`] || (sameRepresentative ? current.representativeWorkplace : ""),
+        representativeOccupation: current[`${prefix}Occupation`] || (sameRepresentative ? current.representativeOccupation : ""),
+        representativeDocumentType: current[`${prefix}Dpi`] ? "DPI" : sameRepresentative ? current.representativeDocumentType : "",
+        representativeDocument: current[`${prefix}Dpi`] || (sameRepresentative ? current.representativeDocument : ""),
+        representativeResidence: current.address || (sameRepresentative ? current.representativeResidence : ""),
+        representativeHomePhone: current[`${prefix}HomePhone`] || current[`${prefix}Phone`] || (sameRepresentative ? current.representativeHomePhone : ""),
+        representativeOfficePhone: current[`${prefix}OfficePhone`] || (sameRepresentative ? current.representativeOfficePhone : ""),
+        representativeMobilePhone: current[`${prefix}Phone`] || (sameRepresentative ? current.representativeMobilePhone : ""),
+        representativeAge: calculateAge(String(current[`${prefix}BirthDate`] || (sameRepresentative ? current.representativeBirthDate : "") || "")),
       };
     });
   }
 
-  async function importStudent(candidateId: number) {
-    const candidate = candidates.find((item) => item.id === candidateId);
-    if (!candidate || !bootstrap) return;
+  async function importStudent(candidateId: number, candidateRows = candidates, setup = bootstrap) {
+    const candidate = candidateRows.find((item) => item.id === candidateId);
+    if (!candidate || !setup) return;
     if (candidate.status === "GRADUATED") { setError("Quinto bachillerato es el último grado. Revisa el caso antes de iniciar una reinscripción."); return; }
     if (candidate.familyId && familyId && candidate.familyId !== familyId) { setError("Este alumno pertenece a otra familia. Revisa el vínculo antes de importarlo."); return; }
     let yearEnrollments: Enrollment[];
@@ -182,40 +343,16 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
     const previous = yearEnrollments.filter((item) => (item.schoolYear ?? 0) < 2027).sort((a, b) => (b.schoolYear ?? 0) - (a.schoolYear ?? 0))[0];
     const targetEnrollment = yearEnrollments.find((item) => item.schoolYear === 2027);
     if (targetEnrollment) { setError(`${candidate.firstName} ${candidate.lastName} ya tiene una inscripción para 2027. Ábrela desde la ficha familiar para revisarla.`); return; }
-    const legacy = await operation<{ representativeFirstName: string; representativeLastName: string; representativeAge: number | null; representativeCivilStatus: string | null; representativeNationality: string | null; representativeOccupation: string | null; representativeDocumentType: string | null; representativeDocument: string | null; representativeResidence: string | null; representativeHomePhone: string | null; representativeOfficePhone: string | null; representativeMobilePhone: string | null; studyPlan: string | null }>(`admission-workflow/students/${candidate.id}/legacy-contract`).catch(() => null);
-    if (legacy) {
-      const importedRepresentative: EnrollmentProfile = {
-        representativeFirstName: legacy.representativeFirstName,
-        representativeLastName: legacy.representativeLastName,
-        representativeAge: legacy.representativeAge,
-        representativeCivilStatus: legacy.representativeCivilStatus,
-        representativeNationality: legacy.representativeNationality,
-        representativeOccupation: legacy.representativeOccupation,
-        representativeDocumentType: legacy.representativeDocumentType,
-        representativeDocument: legacy.representativeDocument,
-        representativeResidence: legacy.representativeResidence,
-        representativeHomePhone: legacy.representativeHomePhone,
-        representativeOfficePhone: legacy.representativeOfficePhone,
-        representativeMobilePhone: legacy.representativeMobilePhone,
-        studyPlan: legacy.studyPlan,
-      };
-      if (!familyId && students.length === 0) setProfile((current) => ({ ...current, ...Object.fromEntries(Object.entries(importedRepresentative).filter(([key, value]) => !current[key] && value != null)) }));
-    }
-    if (candidate.familyId && !familyId) await chooseFamily(candidate.familyId);
     if (!candidate.familyId && familyId) { setError("Este alumno no tiene familia vinculada. Confirma que pertenece a la familia seleccionada antes de guardar."); }
-    if (previous?.profile && students.length === 0) {
-      const shared = Object.fromEntries(sharedProfileKeys.map((key) => [key, previous.profile?.[key]]).filter(([, value]) => value != null && value !== ""));
-      setProfile((current) => ({ ...shared, ...Object.fromEntries(Object.entries(current).filter(([, value]) => value != null && value !== "")) }));
-    }
     const currentGrade = candidate.currentGrade ?? previous?.gradeName ?? "";
-    const targetGradeId = promotedGrade(currentGrade, bootstrap.gradeLevels) || (bootstrap.gradeLevels.find((grade) => normalizeGrade(grade.name) === normalizeGrade(candidate.proposedGrade ?? ""))?.id ?? 0);
+    const targetGradeId = promotedGrade(currentGrade, setup.gradeLevels) || (setup.gradeLevels.find((grade) => normalizeGrade(grade.name) === normalizeGrade(candidate.proposedGrade ?? ""))?.id ?? 0);
     setDraft({
       key: `student-${candidate.id}`, studentId: candidate.id, studentUuid: candidate.uuid ?? undefined,
       firstName: candidate.firstName.trim(), lastName: candidate.lastName.trim(),
-      currentGrade, gradeId: targetGradeId, section: "",
+      currentGrade, gradeId: targetGradeId,
       birthDate: String(previous?.profile?.birthDate ?? candidate.birthDate ?? ""),
       studentDpi: String(previous?.profile?.studentDpi ?? ""),
-      phone: formatPhone(String(previous?.profile?.studentPhone ?? "")), phoneCountryCode: "GT", imported: Boolean(previous || legacy),
+      phone: formatPhone(String(previous?.profile?.studentPhone ?? "")), phoneCountryCode: "GT", imported: Boolean(previous), enroll: true,
     });
     setSelectedCandidateId(candidate.id);
     setHistoricalIntakes(await operation<HistoricalIntake[]>(`admission-workflow/students/${candidate.id}/historical-intakes`).catch(() => []));
@@ -255,7 +392,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
   }
 
   function resetDraftStudent(key: string) {
-    setDraft({ key, firstName: "", lastName: "", currentGrade: "", gradeId: 0, section: "", birthDate: "", studentDpi: "", phone: "", phoneCountryCode: "GT", imported: false });
+    setDraft({ key, firstName: "", lastName: "", currentGrade: "", gradeId: 0, birthDate: "", studentDpi: "", phone: "", phoneCountryCode: "GT", imported: false, enroll: true });
     setSelectedCandidateId(null); setSearch("");
     setHistoricalIntakes([]);
     setHistoricalSearch("");
@@ -269,121 +406,358 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
     resetDraftStudent(`student-${students.length + 2}`);
   }
 
-  function reviewAdmission() { setError(""); setStep(8); }
+  function updateEmergencyContact(index: number, key: keyof EmergencyContact, value: string) {
+    const nextValue = key === "phone" || key === "alternatePhone" ? formatPhone(value) : value;
+    setEmergencyContacts((current) => current.map((contact, contactIndex) => contactIndex === index ? { ...contact, [key]: nextValue } : contact));
+  }
 
-  function continueFromStudents() {
-    const hasDraft = Boolean(draft.firstName.trim() || draft.lastName.trim() || draft.studentId);
-    let nextStudents = students;
-    if (hasDraft) {
-      const student = validateStudentDraft();
-      if (!student) return;
-      nextStudents = [...students, student];
-      setStudents(nextStudents);
-      resetDraftStudent(`student-${students.length + 2}`);
-    }
-    if (!nextStudents.length) { setError("Agrega al menos un alumno para continuar."); return; }
-    setError("");
-    if (entryType === "REINSCRIPTION") setStep(1);
-    else reviewAdmission();
+  function addEmergencyContact() { setEmergencyContacts((current) => [...current, { name: "", phone: "", alternatePhone: "" }]); }
+
+  function removeEmergencyContact(index: number) {
+    setEmergencyContacts((current) => current.length > 1 ? current.filter((_, contactIndex) => contactIndex !== index) : [{ name: "", phone: "", alternatePhone: "" }]);
   }
 
   async function submit() {
-    if (!entryType || !students.length || !year) { setError("Selecciona el tipo de ingreso, agrega al menos un alumno y confirma el ciclo 2027."); return; }
-    if (entryType === "REINSCRIPTION" && students.some((student) => !student.studentId)) { setError("En reinscripción todos los alumnos deben importarse desde el registro existente."); return; }
+    setFieldErrors({});
+    const enrollmentStudents = entryType === "REINSCRIPTION"
+      ? students.filter((student) => student.enroll && !student.alreadyEnrolled)
+      : [...students];
+    const hasDraftStudent = Boolean(draft.firstName.trim() || draft.lastName.trim() || draft.studentId);
+    if (hasDraftStudent) {
+      const student = validateStudentDraft();
+      if (!student) return;
+      enrollmentStudents.push(student);
+    }
+    if (!entryType || !enrollmentStudents.length || !year) { setError(entryType === "REINSCRIPTION" ? "Selecciona al menos un alumno que continuará en 2027." : "Agrega al menos un alumno y confirma el ciclo 2027."); return; }
+    if (entryType === "REINSCRIPTION" && enrollmentStudents.some((student) => !student.studentId)) { setError("En reinscripción todos los alumnos deben importarse desde el registro existente."); return; }
     const parentPrefix = profile.representativeType === "MOTHER" ? "mother" : profile.representativeType === "FATHER" ? "father" : null;
     if (parentPrefix && !String(profile[`${parentPrefix}Name`] ?? "").trim()) { setError("Completa el nombre del padre o madre seleccionado como representante."); return; }
     if (!profile.representativeType || (!parentPrefix && !String(profile.representativeFirstName || profile.representativeName || "").trim())) { setError("Selecciona y completa los datos del representante."); return; }
+    const parentRepresentativeName = parentPrefix ? String(profile[`${parentPrefix}Name`] ?? "").trim() : "";
+    const [parentRepresentativeFirstName = "", ...parentRepresentativeLastNames] = parentRepresentativeName.split(/\s+/);
     const effectiveProfile: EnrollmentProfile = parentPrefix ? {
       ...profile,
-      representativeName: profile[`${parentPrefix}Name`],
-      representativeFirstName: profile[`${parentPrefix}Name`],
-      representativeLastName: "",
+      representativeName: parentRepresentativeName,
+      representativeFirstName: parentRepresentativeFirstName,
+      representativeLastName: parentRepresentativeLastNames.join(" "),
+      representativeBirthDate: profile[`${parentPrefix}BirthDate`] || profile.representativeBirthDate,
+      representativeEmail: profile[`${parentPrefix}Email`] || profile.representativeEmail,
+      representativeWorkplace: profile[`${parentPrefix}Workplace`] || profile.representativeWorkplace,
       representativeDocumentType: profile[`${parentPrefix}Dpi`] ? "DPI" : profile.representativeDocumentType,
       representativeDocument: profile[`${parentPrefix}Dpi`] || null,
       representativeOccupation: profile[`${parentPrefix}Occupation`] || null,
-      representativeResidence: profile.address || null,
+      representativeResidence: profile.representativeResidence || profile.address || null,
       representativeMobilePhone: profile[`${parentPrefix}Phone`] || null,
-      representativeHomePhone: parentPrefix === "father" ? profile.fatherHomePhone || null : null,
+      representativeHomePhone: profile[`${parentPrefix}HomePhone`] || null,
+      representativeOfficePhone: profile[`${parentPrefix}OfficePhone`] || null,
+      representativeAge: calculateAge(String(profile[`${parentPrefix}BirthDate`] || profile.representativeBirthDate || "")),
     } : profile;
-    const invalidEmail = Object.entries(effectiveProfile).some(([key, value]) => key.toLowerCase().includes("email") && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim()));
+    const representativeBirthDate = String(effectiveProfile.representativeBirthDate ?? "").trim();
+    const representativeOccupation = String(effectiveProfile.representativeOccupation ?? "").trim();
+    const representativeWorkplace = String(effectiveProfile.representativeWorkplace ?? "").trim();
+    const representativeResidence = String(effectiveProfile.representativeResidence || effectiveProfile.address || "").trim();
+    const requiredRepresentativePhoneKeys = parentPrefix === "mother"
+      ? ["motherPhone", "motherHomePhone", "motherOfficePhone"]
+      : parentPrefix === "father"
+        ? ["fatherPhone", "fatherHomePhone", "fatherOfficePhone"]
+        : ["representativeMobilePhone", "representativeHomePhone", "representativeOfficePhone"];
+    const requiredPhones = [
+      ...requiredRepresentativePhoneKeys.map((key) => String(effectiveProfile[key] ?? "")),
+      ...emergencyContacts.flatMap((contact) => [contact.phone, ...(contact.alternatePhone ? [contact.alternatePhone] : [])]),
+    ];
+    if (enrollmentStudents.some((student) => !student.birthDate.trim())) { setError("Completa la fecha de nacimiento de cada alumno."); return; }
+    if (!emergencyContacts.length || emergencyContacts.some((contact) => !contact.name.trim() || !contact.phone.trim())) { setError("Agrega al menos un contacto de emergencia con nombre y teléfono."); return; }
+    if (!effectiveProfile.department || !(effectiveProfile.municipality || effectiveProfile.city) || !effectiveProfile.representativeCivilStatus || !effectiveProfile.representativeNationality) { setError("Completa departamento, municipio, estado civil y nacionalidad."); return; }
+    if (!representativeBirthDate || !representativeOccupation || !representativeWorkplace || !representativeResidence) { setError("Completa fecha de nacimiento, ocupación, lugar de trabajo y residencia del representante."); return; }
+    if (!effectiveProfile.representativeDocumentType || !effectiveProfile.representativeDocument) { setError("Completa el tipo y número de documento del representante."); return; }
+    if (requiredPhones.some((phone) => formatPhone(phone).replace(/\D/g, "").length !== 8)) { setError("Todos los teléfonos requeridos deben tener ocho dígitos."); return; }
+    const requiredEmailKey = parentPrefix ? `${parentPrefix}Email` : "representativeEmail";
+    const requiredEmail = String(effectiveProfile[requiredEmailKey] ?? "").trim();
+    if (!requiredEmail || !emailPattern.test(requiredEmail)) {
+      setFieldErrors({ [requiredEmailKey]: requiredEmail ? "Revisa el formato del correo." : "Este correo es obligatorio." });
+      setError(requiredEmail ? "Revisa el formato del correo marcado." : "Completa el correo electrónico del representante.");
+      return;
+    }
+    const birthDates = [effectiveProfile.motherBirthDate, effectiveProfile.fatherBirthDate, representativeBirthDate, ...enrollmentStudents.map((student) => student.birthDate)];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (birthDates.some((value) => {
+      if (!value) return false;
+      const birthDate = new Date(`${value}T00:00:00`);
+      return Number.isNaN(birthDate.getTime()) || birthDate > today;
+    })) { setError("Revisa las fechas de nacimiento; deben ser válidas y no posteriores a hoy."); return; }
+    const invalidEmailKeys = (["motherEmail", "fatherEmail", "representativeEmail"] as const).filter((key) => {
+      const value = effectiveProfile[key];
+      return typeof value === "string" && value.trim() !== "" && !emailPattern.test(value.trim());
+    });
+    const invalidEmail = invalidEmailKeys.length > 0;
     const invalidPhone = Object.entries(effectiveProfile).some(([key, value]) => key.toLowerCase().includes("phone") && value && value !== "N/A" && value !== "NA" && value !== "n/a" && value !== "na" && value !== "-" && formatPhone(String(value), countryForPhone(key)?.dialCode, countryForPhone(key)?.phoneDigits).replace(/\D/g, "").length !== (countryForPhone(key)?.phoneDigits ?? 8));
-    const invalidStudentData = students.some((student) => {
+    const invalidStudentData = enrollmentStudents.some((student) => {
       const country = countryCodes.find((item) => item.countryCode === student.phoneCountryCode) ?? countryCodes.find((item) => item.countryCode === "GT");
       return Boolean((student.studentDpi && formatDpi(student.studentDpi).replace(/\D/g, "").length !== 13) || (student.phone && formatPhone(student.phone, country?.dialCode, country?.phoneDigits).replace(/\D/g, "").length !== (country?.phoneDigits ?? 8)));
     });
-    if (invalidEmail || invalidPhone || invalidStudentData || (effectiveProfile.representativeDocumentType === "DPI" && effectiveProfile.representativeDocument && formatDpi(String(effectiveProfile.representativeDocument)).replace(/\D/g, "").length !== 13) || (effectiveProfile.motherDpi && formatDpi(String(effectiveProfile.motherDpi)).replace(/\D/g, "").length !== 13) || (effectiveProfile.fatherDpi && formatDpi(String(effectiveProfile.fatherDpi)).replace(/\D/g, "").length !== 13)) {
-      setError(invalidEmail ? "Revisa el formato del correo electrónico." : "Revisa teléfonos (8 dígitos) y DPI (13 dígitos) antes de guardar.");
+    if (invalidEmail) {
+      setFieldErrors(Object.fromEntries(invalidEmailKeys.map((key) => [key, "Revisa el formato del correo."])));
+      setError("Revisa el formato de los correos marcados.");
+      return;
+    }
+    if (invalidPhone || invalidStudentData || (effectiveProfile.representativeDocumentType === "DPI" && effectiveProfile.representativeDocument && formatDpi(String(effectiveProfile.representativeDocument)).replace(/\D/g, "").length !== 13) || (effectiveProfile.motherDpi && formatDpi(String(effectiveProfile.motherDpi)).replace(/\D/g, "").length !== 13) || (effectiveProfile.fatherDpi && formatDpi(String(effectiveProfile.fatherDpi)).replace(/\D/g, "").length !== 13)) {
+      setError("Revisa teléfonos (8 dígitos) y DPI (13 dígitos) antes de guardar.");
       return;
     }
     setBusy(true); setError("");
     try {
-      const timestampedProfile: EnrollmentProfile = { ...effectiveProfile, submissionDate: localDate() };
+      const primaryEmergencyContact = emergencyContacts[0] ?? { name: "", phone: "", alternatePhone: "" };
+      const timestampedProfile: EnrollmentProfile = {
+        ...effectiveProfile,
+        submissionDate: localDate(),
+        emergencyContactName: primaryEmergencyContact.name,
+        emergencyContactPhone: primaryEmergencyContact.phone ? `+502 ${formatPhone(primaryEmergencyContact.phone)}` : null,
+        emergencyPhone: primaryEmergencyContact.alternatePhone ? `+502 ${formatPhone(primaryEmergencyContact.alternatePhone)}` : null,
+      };
       for (const [key, selectedCode] of Object.entries(phoneCountries)) {
         const code = key === "representativeMobilePhone" && parentPrefix ? phoneCountries[`${parentPrefix}Phone`] : selectedCode;
         const value = timestampedProfile[key];
         const country = countryCodes.find((item) => item.countryCode === code);
         if (value && country) timestampedProfile[key] = `${country.dialCode} ${formatPhone(String(value), country.dialCode, country.phoneDigits)}`;
       }
-      for (const student of students) {
+      for (const student of enrollmentStudents) {
         if (!student.studentId) continue;
         const existing = await operation<Enrollment[]>(`students/${student.studentId}/enrollments`);
         if (existing.some((item) => item.schoolYear === 2027)) throw new Error(`${student.firstName} ${student.lastName} ya está inscrito en 2027. Actualiza su inscripción desde la ficha existente.`);
       }
-      const defaultName = String(profile.motherName || profile.fatherName || "Nueva familia").trim();
+      const representativeFullName = `${effectiveProfile.representativeFirstName ?? ""} ${effectiveProfile.representativeLastName ?? ""}`.trim();
+      const defaultName = String(familyName || profile.motherName || profile.fatherName || representativeFullName || "Nueva familia").trim();
       const saved = await save<{ family: FamilyIntake; enrollments: Enrollment[] }>("admission-workflow/intakes", {
-        familyId, familyName: familyName.trim() || defaultName, profile: timestampedProfile,
-        students: students.map((student) => ({ historicalIntakeId: student.historicalIntakeId ?? null, enrollment: {
+        familyId, familyName: defaultName,
+        profile: { ...timestampedProfile, emergencyContacts: emergencyContacts.map((contact) => ({ name: contact.name.trim(), phone: contact.phone.trim(), alternatePhone: contact.alternatePhone.trim() || null })) },
+        students: enrollmentStudents.map((student) => ({ historicalIntakeId: student.historicalIntakeId ?? null, enrollment: {
           ...(student.studentId ? { studentId: student.studentId, studentUuid: student.studentUuid } : {}),
           firstName: student.firstName, lastName: student.lastName,
-          schoolYearId: year.id, gradeId: student.gradeId, section: student.section || null,
+          schoolYearId: year.id, gradeId: student.gradeId, section: null,
           rejectExisting: true,
           status: "PENDIENTE_FIRMA",
-          profile: { ...timestampedProfile, contractNumber: null, familyName: familyName.trim() || defaultName, birthDate: student.birthDate || null, studentDpi: student.studentDpi || null, studentPhone: student.phone ? `${countryCodes.find((item) => item.countryCode === student.phoneCountryCode)?.dialCode ?? "+502"} ${formatPhone(student.phone, countryCodes.find((item) => item.countryCode === student.phoneCountryCode)?.dialCode, countryCodes.find((item) => item.countryCode === student.phoneCountryCode)?.phoneDigits)}` : timestampedProfile.representativeMobilePhone || null, currentGrade: student.currentGrade || null },
+          profile: { ...timestampedProfile, contractNumber: null, familyName: defaultName, birthDate: student.birthDate || null, studentDpi: student.studentDpi || null, studentPhone: student.phone ? `${countryCodes.find((item) => item.countryCode === student.phoneCountryCode)?.dialCode ?? "+502"} ${formatPhone(student.phone, countryCodes.find((item) => item.countryCode === student.phoneCountryCode)?.dialCode, countryCodes.find((item) => item.countryCode === student.phoneCountryCode)?.phoneDigits)}` : timestampedProfile.representativeMobilePhone || null, currentGrade: student.currentGrade || null },
         } })),
       });
-      router.replace(`/?familyId=${saved.family.id}`);
+      if (!saved.enrollments?.length) throw new Error("La inscripción se guardó, pero no se generó el contrato.");
+      const enrollmentIds = saved.enrollments.map((enrollment) => enrollment.id);
+      const previewParams = new URLSearchParams({ ids: enrollmentIds.join(",") });
+      const savedFamilyId = saved.family?.id ?? familyId;
+      if (savedFamilyId) previewParams.set("familyId", String(savedFamilyId));
+      router.replace(`/inscripciones/contrato/${enrollmentIds[0]}?${previewParams.toString()}`);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "No se pudo guardar la inscripción demo"); }
     finally { setBusy(false); }
   }
 
-  function textField(key: string, label: string, type = "text") {
+  function dateField(key: string, label: string, required = false, optional = false) {
+    return <DatePartsField key={key} label={label} value={String(profile[key] ?? "") || null} minYear={1900} maxYear={new Date().getFullYear()} order="day-month-year" required={required} optional={optional} onChange={(value) => setValue(key, value)} />;
+  }
+  function profileField(key: string, label: string, type = "text", required = false) {
+    if (key.endsWith("BirthDate")) return dateField(key, label, required, !required);
+    const resolvedType = type !== "text" ? type : key.toLowerCase().includes("email") ? "email" : key.toLowerCase().includes("phone") ? "tel" : "text";
+    return orderedOptions[key] ? selectField(key, label, required) : textField(key, label, resolvedType, required);
+  }
+  function textField(key: string, label: string, type = "text", required = false) {
     const normalizedKey = key.toLowerCase();
     const isPhone = normalizedKey.includes("phone");
     const country = isPhone ? countryForPhone(key) : undefined;
     const formatter = normalizedKey.includes("dpi") || (normalizedKey === "representativedocument" && profile.representativeDocumentType === "DPI") ? formatDpi : isPhone ? (value: string) => formatPhone(value, country?.dialCode, country?.phoneDigits) : null;
-    return <label className="field-label" key={key}>{label}{isPhone && <span className="phone-field"><SearchableSelect value={phoneCountries[key] ?? "GT"} options={countryCodes.map((item) => ({ value: item.countryCode, label: `${item.dialCode} · ${item.countryName}` }))} onChange={(value) => setPhoneCountries((current) => ({ ...current, [key]: value }))} placeholder="Código de país" /><input type={type} inputMode="numeric" maxLength={(country?.phoneDigits ?? 8) + 1} value={formatter!(String(profile[key] ?? ""))} onChange={(event) => setValue(key, formatter!(event.target.value))} /></span>}{!isPhone && <input type={type} inputMode={formatter ? "numeric" : undefined} maxLength={normalizedKey.includes("dpi") || normalizedKey === "representativedocument" ? 15 : undefined} value={formatter ? formatter(String(profile[key] ?? "")) : profile[key] ?? ""} onChange={(event) => setValue(key, type === "number" ? Number(event.target.value) || null : formatter ? formatter(event.target.value) : event.target.value)} />}</label>;
+    const fieldError = fieldErrors[key];
+    return <label className={`field-label public-pre-field ${fieldError ? "has-error" : ""}`} key={key}><span>{label}{required && <b className="public-pre-required" aria-hidden="true"> *</b>}</span><input type={type} inputMode={formatter ? "numeric" : undefined} maxLength={isPhone ? (country?.phoneDigits ?? 8) + 1 : normalizedKey.includes("dpi") || normalizedKey === "representativedocument" ? 15 : undefined} placeholder={isPhone ? "1234-5678" : formatter ? "1234 56789 0123" : undefined} value={formatter ? formatter(String(profile[key] ?? "")) : profile[key] ?? ""} aria-invalid={Boolean(fieldError)} aria-describedby={fieldError ? `${key}-error` : undefined} onChange={(event) => {
+      const nextValue = event.target.value;
+      setValue(key, type === "number" ? Number(nextValue) || null : formatter ? formatter(nextValue) : nextValue);
+      if (type === "email") setFieldErrors((current) => {
+        const next = { ...current };
+        const normalized = nextValue.trim();
+        if (!normalized && required) next[key] = "Este correo es obligatorio.";
+        else if (normalized && !emailPattern.test(normalized)) next[key] = "Revisa el formato del correo.";
+        else delete next[key];
+        return next;
+      });
+    }} required={required} />{fieldError && <small className="public-pre-field-error" id={`${key}-error`}>{fieldError}</small>}</label>;
   }
-  function selectField(key: string, label: string) {
+  function selectField(key: string, label: string, required = false) {
     const options = orderedOptions[key] ?? [];
     const value = String(profile[key] ?? "");
-    return <label className="field-label" key={key}>{label}<SearchableSelect value={value} options={optionsWithExistingValue(options, value)} onChange={(next) => setValue(key, next || null)} placeholder="Buscar en el catálogo…" /></label>;
+    return <label className="field-label public-pre-field" key={key}><span>{label}{required && <b className="public-pre-required" aria-hidden="true"> *</b>}</span><SearchableSelect value={value} options={optionsWithExistingValue(options, value)} onChange={(next) => setValue(key, next || null)} placeholder="Buscar en el catálogo…" /></label>;
   }
 
-  const labels: Record<number, string> = { 0: "Tipo", 1: "Familia", 2: "Madre", 3: "Padre", 4: "Domicilio", 5: "Representante", 6: "Contacto", 7: "Alumno", 8: "Revisión" };
-  return <main className="registration-standalone">
-    <header className="registration-brand"><button type="button" className="registration-logo" onClick={() => router.push("/")}><Image src="/logo-colegio.png" alt="Colegio Bilingüe Montessori Zacapa" width={52} height={52} priority /><strong>Colegio Bilingüe Montessori Zacapa</strong></button><span>INSCRIPCIONES · CICLO 2027</span></header>
-    <div className="registration-heading"><button className="text-button" onClick={() => router.push("/")}>← Volver a inscripciones</button><span className="eyebrow">CICLO ESCOLAR 2027</span><h1>Nueva inscripción</h1><p>Completa cada paso para registrar a la familia y sus alumnos.</p></div>
-    <nav className="wizard-steps registration-steps" aria-label="Pasos del formulario">{flowSteps.map((page, position) => <button type="button" key={page} className={page === step ? "current" : position < flowPosition ? "completed" : ""} onClick={() => position < flowPosition && setStep(page)}><i>{position < flowPosition ? <AppIcon name="check" size={15} /> : position + 1}</i>{labels[page]}</button>)}</nav>
-    <section className="registration-panel">
-      {step === 0 && <div className="registration-content"><div className="form-intro"><span className="intro-icon blue"><AppIcon name="users" size={26} /></span><div><h3>¿Qué tipo de inscripción vas a registrar?</h3><p>La reinscripción recupera datos existentes. El nuevo ingreso permite registrar una familia nueva o agregar un hermano.</p></div></div><div className="entry-choice-grid"><button className="entry-choice" onClick={() => { setEntryType("REINSCRIPTION"); setStep(7); }}><span className="stat-icon blue"><AppIcon name="check" /></span><strong>Reinscripción</strong><small>Busca e importa alumnos del ciclo anterior.</small></button><button className="entry-choice" onClick={() => { setEntryType("NEW_INCOME"); setStep(1); if (initialFamilyId) void chooseFamily(initialFamilyId); }}><span className="stat-icon mint"><AppIcon name="plus" /></span><strong>Nuevo ingreso</strong><small>Captura los datos de una familia nueva.</small></button></div></div>}
-      {step === 1 && <div className="registration-content"><div className="form-intro"><span className="intro-icon coral"><AppIcon name="users" size={26} /></span><div><h3>Datos de la familia</h3><p>Busca una familia para importar sus datos compartidos o registra una nueva.</p></div></div><div className="form-grid"><label className="field-label">Familia existente {entryType === "NEW_INCOME" && <small>(opcional, si ya hay hermanos)</small>}<SearchableSelect value={String(familyId ?? "")} options={families.map((f) => ({ value: String(f.id), label: f.name }))} onChange={(raw) => { const id = Number(raw) || null; setFamilyId(id); if (id) void chooseFamily(id); else { setFamilyName(""); setProfile({ submissionDate: localDate() }); } }} placeholder="Buscar familia…" /></label>{familyId ? <div className="info-tile"><small>FAMILIA VINCULADA</small><strong>{familyName}</strong></div> : <label className="field-label">Nombre de familia<input value={familyName} onChange={(e) => setFamilyName(e.target.value)} /></label>}</div></div>}
-      {step === 2 && <div className="registration-content"><div className="form-intro"><span className="intro-icon coral"><AppIcon name="users" size={26} /></span><div><h3>Datos de la madre</h3><p>Completa los datos de contacto y laborales que correspondan.</p></div></div><div className="form-grid">{motherFields.map(([key, label]) => orderedOptions[key] ? selectField(key, label) : textField(key, label, key.toLowerCase().includes("email") ? "email" : "text"))}</div></div>}
-      {step === 3 && <div className="registration-content"><div className="form-intro"><span className="intro-icon blue"><AppIcon name="users" size={26} /></span><div><h3>Datos del padre</h3><p>Completa los datos de contacto y laborales que correspondan.</p></div></div><div className="form-grid">{fatherFields.map(([key, label]) => orderedOptions[key] ? selectField(key, label) : textField(key, label, key.toLowerCase().includes("phone") ? "tel" : "text"))}</div></div>}
-      {step === 4 && <div className="registration-content"><div className="form-intro"><span className="intro-icon mint"><AppIcon name="users" size={26} /></span><div><h3>Domicilio y contacto de emergencia</h3><p>Los teléfonos de madre, padre y representante ya están en sus pasos. Aquí registra una persona de emergencia y, si hace falta, un contacto alternativo.</p></div></div><div className="form-grid">{homeFields.map(([key, label]) => orderedOptions[key] ? selectField(key, label) : textField(key, label, key.toLowerCase().includes("phone") ? "tel" : "text"))}</div></div>}
-      {step === 5 && <div className="registration-content"><div className="form-intro"><span className="intro-icon mint"><AppIcon name="users" size={26} /></span><div><h3>¿Quién representará al alumno?</h3><p>Si es la madre o el padre, reutilizamos sus datos; solo captura otra persona cuando corresponda.</p></div></div><div className="form-grid"><label className="field-label">Representante<SearchableSelect value={String(profile.representativeType ?? "")} options={representativeTypeOptions} onChange={selectRepresentativeType} placeholder="Seleccionar representante…" /></label></div>{representativeFromParent ? <div className="registration-student-list"><article className="family-child"><span><strong>{String(profile[profile.representativeType === "MOTHER" ? "motherName" : "fatherName"] ?? "Falta el nombre")}</strong><small>{String(profile[profile.representativeType === "MOTHER" ? "motherPhone" : "fatherPhone"] ?? "Sin teléfono registrado")} · Los datos se tomarán del paso de {profile.representativeType === "MOTHER" ? "madre" : "padre"}.</small></span><button type="button" className="text-button" onClick={() => setStep(profile.representativeType === "MOTHER" ? 2 : 3)}>Editar datos</button></article></div> : profile.representativeType === "OTHER" ? <div className="form-grid">{representativeIdentityFields.map(([key, label]) => orderedOptions[key] ? selectField(key, label) : textField(key, label, key === "representativeAge" ? "number" : "text"))}</div> : null}</div>}
-      {step === 6 && <div className="registration-content"><div className="form-intro"><span className="intro-icon blue"><AppIcon name="users" size={26} /></span><div><h3>Contacto del representante</h3><p>Indica dónde localizar al representante legal.</p></div></div><div className="form-grid">{representativeContactFields.map(([key, label]) => textField(key, label, key.toLowerCase().includes("phone") ? "tel" : "text"))}</div></div>}
-      {step === 7 && <div className="registration-content"><div className="form-intro"><span className="intro-icon blue"><AppIcon name="users" size={26} /></span><div><h3>{students.length ? `Agregar alumno ${students.length + 1}` : "Datos del alumno"}</h3><p>{entryType === "REINSCRIPTION" ? "Busca e importa al alumno existente. Puedes agregar hermanos aquí; después completarás los datos familiares y el contrato de cada alumno." : "Captura nombres y apellidos completos. Puedes agregar varios alumnos a esta inscripción."}</p></div></div>
-        {entryType === "REINSCRIPTION" && <div className="student-search-block"><label className="field-label">Buscar alumno existente<input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nombre, apellido o código escolar" /></label><div className="student-search-results">{filteredCandidates.slice(0, 8).map((candidate) => { const nextGrade = candidate.currentGrade ? gradeOptions.find((grade) => grade.id === promotedGrade(candidate.currentGrade!, gradeOptions))?.name : candidate.proposedGrade; return <button type="button" key={candidate.id} className={selectedCandidateId === candidate.id ? "student-search-result selected" : "student-search-result"} onClick={() => { setSelectedCandidateId(candidate.id); void importStudent(candidate.id); }}><span><strong>{candidate.firstName} {candidate.lastName}</strong><small>{candidate.currentGrade || "Grado actual por confirmar"} → {nextGrade || "Grado por definir"}</small></span><span className="status-pill success">Importar datos</span></button>; })}</div></div>}
-        {entryType === "REINSCRIPTION" && draft.studentId && <details className="student-extra-details"><summary>Buscar otra ficha histórica</summary><div className="student-search-block"><label className="field-label">Nombre o DPI consignado<input value={historicalSearch} onChange={(event) => setHistoricalSearch(event.target.value)} placeholder="Al menos tres caracteres" /></label><button type="button" className="button button-soft" onClick={() => void searchHistoricalIntakes()}>Buscar ficha histórica</button></div></details>}
-        {historicalIntakes.length > 0 && <div className="registration-student-list"><h4>Fichas de inscripción de años anteriores</h4><p className="muted">Las fichas ya vinculadas alimentan los datos familiares. Usa una ficha adicional solo si faltan datos o debes revisar una coincidencia.</p>{historicalIntakes.map((row) => <article className="family-child" key={row.id}><span><strong>{row.firstName} {row.lastName}</strong><small>Ciclo {row.schoolYear} · fila {row.sourceRowId}{row.intakeDocumentNumber ? ` · DPI en ficha ${formatDpi(row.intakeDocumentNumber)}` : " · sin DPI válido"}</small></span><button type="button" className="button button-soft" onClick={() => importHistoricalIntake(row)}>{row.matchedStudentId === draft.studentId ? "Completar faltantes" : "Vincular e importar"}</button></article>)}</div>}
-        <div className="form-grid"><label className="field-label">Nombres<input value={draft.firstName} onChange={(e) => setDraft((v) => ({ ...v, firstName: e.target.value }))} /></label><label className="field-label">Apellidos<input value={draft.lastName} onChange={(e) => setDraft((v) => ({ ...v, lastName: e.target.value }))} /></label><DatePartsField label="Fecha de nacimiento" value={draft.birthDate || null} minYear={1900} maxYear={new Date().getFullYear()} onChange={(value) => setDraft((v) => ({ ...v, birthDate: value ?? "" }))} /><details className="student-extra-details"><summary>Datos adicionales del alumno (CUI y teléfono)</summary><div className="form-grid"><label className="field-label">CUI del alumno<input inputMode="numeric" maxLength={15} value={draft.studentDpi} onChange={(e) => setDraft((v) => ({ ...v, studentDpi: formatDpi(e.target.value) }))} /></label><label className="field-label">Teléfono de contacto<span className="phone-field"><SearchableSelect value={draft.phoneCountryCode ?? "GT"} options={countryCodes.map((item) => ({ value: item.countryCode, label: `${item.dialCode} · ${item.countryName}` }))} onChange={(value) => setDraft((v) => ({ ...v, phoneCountryCode: value }))} placeholder="Código de país" /><input type="tel" inputMode="numeric" maxLength={(countryCodes.find((item) => item.countryCode === draft.phoneCountryCode)?.phoneDigits ?? 8) + 1} value={draft.phone} onChange={(e) => { const country = countryCodes.find((item) => item.countryCode === draft.phoneCountryCode); setDraft((v) => ({ ...v, phone: formatPhone(e.target.value, country?.dialCode, country?.phoneDigits) })); }} /></span></label></div></details>{entryType === "REINSCRIPTION" && <div className="info-tile"><small>GRADO ACTUAL</small><strong>{draft.currentGrade || "Selecciona un alumno"}</strong></div>}<label className="field-label">Grado para 2027<select value={draft.gradeId || ""} onChange={(e) => setDraft((v) => ({ ...v, gradeId: Number(e.target.value) }))}><option value="">Selecciona un grado</option>{gradeOptions.map((grade) => <option value={grade.id} key={grade.id}>{grade.name}{normalizeGrade(grade.name) === "quinto bachillerato" ? " · último grado" : ""}</option>)}</select></label><label className="field-label">Sección<select value={draft.section} onChange={(e) => setDraft((v) => ({ ...v, section: e.target.value }))}><option value="">Seleccionar sección</option>{optionsWithExistingValue(["A", "B", "C"], draft.section).map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label></div>
-        {draft.imported && <p className="import-notice"><AppIcon name="check" size={16} /> Datos del ciclo anterior importados; puedes actualizarlos antes de continuar.</p>}
-        <button className="button button-soft" type="button" onClick={queueStudentForContract}><AppIcon name="plus" size={17} /> Guardar alumno y agregar otro</button>
-        {students.length > 0 && <div className="registration-student-list"><h4>Alumnos incluidos ({students.length})</h4><p className="muted">Puedes registrar varios hermanos en la misma inscripción.</p>{students.map((student) => <article className="family-child" key={student.key}><span><strong>{student.firstName} {student.lastName}</strong><small>{gradeOptions.find((grade) => grade.id === student.gradeId)?.name}</small></span><button type="button" className="text-button" onClick={() => setStudents((current) => current.filter((item) => item.key !== student.key))}>Quitar</button></article>)}</div>}
-      </div>}
-      {step === 8 && <div className="registration-content"><div className="form-intro"><span className="intro-icon mint"><AppIcon name="check" size={26} /></span><div><h3>Revisar inscripción</h3><p>Los contratos tomarán los datos de la familia, el representante y cada alumno. No hay otro formulario que llenar.</p></div></div><div className="registration-student-list">{students.map((student) => <article className="family-child" key={student.key}><span><strong>{student.firstName} {student.lastName}</strong><small>{gradeOptions.find((grade) => grade.id === student.gradeId)?.name} · Ciclo {year?.year ?? 2027}</small></span></article>)}</div><p className="muted">El correlativo se asigna al generar cada contrato. Las cuotas y datos institucionales se toman de la configuración del ciclo y grado; si faltan, deberán configurarse antes de emitirlo.</p></div>}
-      {error && <p className="alert-error" role="alert">{error}</p>}
-      <footer className="registration-actions"><button className="button button-soft" type="button" onClick={() => step === 0 ? router.push("/") : setStep(previousStep)}>{step === 0 ? "Cancelar" : "Atrás"}</button>{step === 7 ? <button className="button button-primary" type="button" onClick={continueFromStudents}>Continuar <AppIcon name="arrow" size={18} /></button> : step === 8 ? <button className="button button-primary" type="button" disabled={busy || !students.length} onClick={() => void submit()}>{busy ? "Guardando…" : "Guardar inscripción"}<AppIcon name="check" size={18} /></button> : entryType === "REINSCRIPTION" && (step === 6 || (step === 5 && representativeFromParent)) ? <button className="button button-primary" type="button" onClick={reviewAdmission}>Revisar inscripción <AppIcon name="arrow" size={18} /></button> : <button className="button button-primary" type="button" disabled={step === 0} onClick={() => { setError(""); if (step === 5 && !profile.representativeType) { setError("Selecciona al representante."); return; } if (step === 5 && representativeFromParent && !String(profile[profile.representativeType === "MOTHER" ? "motherName" : "fatherName"] ?? "").trim()) { setError("Completa el nombre del padre o madre seleccionado."); return; } if (nextStep !== undefined) setStep(nextStep); }}>{step === 0 ? "Elige un tipo de ingreso" : "Continuar"}<AppIcon name="arrow" size={18} /></button>}</footer>
-    </section>
+  function locationField(key: "department" | "city", label: string, options: readonly string[], required = false) {
+    const value = String(profile[key] ?? "");
+    return <label className="field-label public-pre-field" key={key}><span>{label}{required && <b className="public-pre-required" aria-hidden="true"> *</b>}</span><select value={value} onChange={(event) => setValue(key, event.target.value)} required={required} disabled={key === "city" && !profile.department}><option value="">Seleccione</option>{optionsWithExistingValue(options, value).map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>;
+  }
+
+  const draftGradeName = gradeOptions.find((grade) => grade.id === draft.gradeId)?.name ?? "Grado para 2027";
+  const submitForm = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void submit(); };
+
+  return <main className="public-boleta-page public-boleta-site public-pre-enrollment-page admission-public-replica">
+    <header className="public-boleta-site-header">
+      <div className="public-boleta-site-brand"><Image unoptimized src="/logo-colegio.png" alt="Escudo Colegio Bilingüe Montessori Zacapa" width={44} height={44} priority /><span><small>COLEGIO BILINGÜE</small><strong>MONTESSORI ZACAPA</strong></span></div>
+    </header>
+
+    <div className="public-boleta-site-content">
+      <div className="admission-page-nav"><button type="button" className="admission-back-button" onClick={() => router.push(entryType === "REINSCRIPTION" ? "/inscripciones/reinscripcion" : "/inscripciones/iniciar")}>← Volver a inscripciones</button></div>
+      <section className="public-boleta-site-hero public-pre-hero">
+        <h1>{entryType === "REINSCRIPTION" ? <>Reinscripción <em>2027.</em></> : <>Inscripción <em>2027.</em></>}</h1>
+        <p className="public-pre-greeting">{familyName ? `Familia ${familyName}` : "Nueva familia"}</p>
+        <p className="public-pre-intro">{entryType === "REINSCRIPTION" ? "Revisa la respuesta de preinscripción más reciente y confirma los datos de cada alumno para continuar el proceso del ciclo 2027." : "Ingresa la información de la familia, los padres, el representante y cada alumno para preparar la inscripción del ciclo 2027."}</p>
+      </section>
+
+      <form className="public-boleta-card public-pre-card" onSubmit={submitForm} noValidate>
+        <div className="public-pre-form-heading">
+          <div><p className="public-pre-eyebrow">Nombre de la familia: <strong>{familyName || "Nueva familia"}</strong></p><h2>Revise y actualice su información</h2></div>
+          <p>Revise y actualice los datos. Todos los teléfonos son obligatorios y deben escribirse como 1234-5678.</p>
+        </div>
+
+        <section className="public-pre-section public-pre-representative-choice">
+          <h3>Representante familiar</h3>
+          <p>¿Quién será el representante familiar durante el proceso de inscripción?</p>
+          <div className="public-pre-representative-options" role="radiogroup" aria-label="Representante familiar">
+            {representativeTypeOptions.map((option, index) => <label className={`public-pre-representative-option ${profile.representativeType === option.value ? "is-selected" : ""}`} key={option.value}>
+              <input type="radio" name="representativeType" value={option.value} checked={profile.representativeType === option.value} onChange={() => selectRepresentativeType(option.value)} required={index === 0} />
+              <span>{option.label === "Otro" ? "Otra persona" : option.label}</span>
+            </label>)}
+          </div>
+          <p className="public-pre-representative-help">El representante debe proporcionar sus datos de identificación y contacto.</p>
+        </section>
+
+        <div className="public-pre-guardian-grid">
+          <section className="public-pre-section">
+            <h3>Madre</h3>
+            <div className="public-pre-fields">
+              {profile.representativeType === "MOTHER" ? <>{profileField("representativeFirstName", "Nombres", "text", true)}{profileField("representativeLastName", "Apellidos", "text", true)}</> : profileField("motherName", "Nombre completo")}
+              {profileField("motherBirthDate", "Fecha de nacimiento", "text", profile.representativeType === "MOTHER")}
+              {profileField("motherPhone", "Teléfono celular", "tel", profile.representativeType === "MOTHER")}
+              {profileField("motherEmail", "Correo electrónico", "email", profile.representativeType === "MOTHER")}
+              {profile.representativeType !== "MOTHER" && profileField("motherDpi", "DPI")}
+              {profileField("motherOccupation", "Ocupación", "text", profile.representativeType === "MOTHER")}
+              {profileField("motherWorkplace", "Lugar de trabajo", "text", profile.representativeType === "MOTHER")}
+              {profileField("motherHomePhone", "Teléfono de casa", "tel", profile.representativeType === "MOTHER")}
+              {profileField("motherOfficePhone", "Teléfono de oficina", "tel", profile.representativeType === "MOTHER")}
+            </div>
+            {profile.representativeType === "MOTHER" && <>
+              <h4 className="public-pre-subheading">Datos del representante</h4>
+              <div className="public-pre-fields">
+                {profileField("representativeDocumentType", "Tipo de documento", "text", true)}
+                {profileField("representativeDocument", "Número de documento", "text", true)}
+                {profileField("representativeCivilStatus", "Estado civil", "text", true)}
+                {profileField("representativeNationality", "Nacionalidad", "text", true)}
+                {profileField("representativeResidence", "Dirección", "text", true)}
+                {locationField("department", "Departamento", departmentOptions, true)}
+                {locationField("city", "Municipio", municipalityOptions, true)}
+              </div>
+            </>}
+          </section>
+
+          <section className="public-pre-section">
+            <h3>Padre</h3>
+            <div className="public-pre-fields">
+              {profile.representativeType === "FATHER" ? <>{profileField("representativeFirstName", "Nombres", "text", true)}{profileField("representativeLastName", "Apellidos", "text", true)}</> : profileField("fatherName", "Nombre completo")}
+              {profileField("fatherBirthDate", "Fecha de nacimiento", "text", profile.representativeType === "FATHER")}
+              {profileField("fatherPhone", "Teléfono celular", "tel", profile.representativeType === "FATHER")}
+              {profileField("fatherEmail", "Correo electrónico", "email", profile.representativeType === "FATHER")}
+              {profile.representativeType !== "FATHER" && profileField("fatherDpi", "DPI")}
+              {profileField("fatherOccupation", "Ocupación", "text", profile.representativeType === "FATHER")}
+              {profileField("fatherWorkplace", "Lugar de trabajo", "text", profile.representativeType === "FATHER")}
+              {profileField("fatherHomePhone", "Teléfono de casa", "tel", profile.representativeType === "FATHER")}
+              {profileField("fatherOfficePhone", "Teléfono de oficina", "tel", profile.representativeType === "FATHER")}
+            </div>
+            {profile.representativeType === "FATHER" && <>
+              <h4 className="public-pre-subheading">Datos del representante</h4>
+              <div className="public-pre-fields">
+                {profileField("representativeDocumentType", "Tipo de documento", "text", true)}
+                {profileField("representativeDocument", "Número de documento", "text", true)}
+                {profileField("representativeCivilStatus", "Estado civil", "text", true)}
+                {profileField("representativeNationality", "Nacionalidad", "text", true)}
+                {profileField("representativeResidence", "Dirección", "text", true)}
+                {locationField("department", "Departamento", departmentOptions, true)}
+                {locationField("city", "Municipio", municipalityOptions, true)}
+              </div>
+            </>}
+          </section>
+        </div>
+
+        {profile.representativeType === "OTHER" && <section className="public-pre-section">
+          <h3>Datos del representante</h3>
+          <div className="public-pre-fields">
+            {profileField("representativeFirstName", "Nombres", "text", true)}
+            {profileField("representativeLastName", "Apellidos", "text", true)}
+            {profileField("representativeBirthDate", "Fecha de nacimiento", "text", true)}
+            {profileField("representativeCivilStatus", "Estado civil", "text", true)}
+            {profileField("representativeNationality", "Nacionalidad", "text", true)}
+            {profileField("representativeDocumentType", "Tipo de documento", "text", true)}
+            {profileField("representativeDocument", "Número de documento", "text", true)}
+            {profileField("representativeEmail", "Correo electrónico", "email", true)}
+            {profileField("representativeMobilePhone", "Teléfono celular", "tel", true)}
+            {profileField("representativeOccupation", "Ocupación", "text", true)}
+            {profileField("representativeWorkplace", "Lugar de trabajo", "text", true)}
+            {profileField("representativeResidence", "Dirección", "text", true)}
+            {locationField("department", "Departamento", departmentOptions, true)}
+            {locationField("city", "Municipio", municipalityOptions, true)}
+            {profileField("representativeHomePhone", "Teléfono de casa", "tel", true)}
+            {profileField("representativeOfficePhone", "Teléfono de oficina", "tel", true)}
+          </div>
+        </section>}
+
+        <section className="public-pre-section">
+          <h3>Contactos para emergencias</h3>
+          {emergencyContacts.map((contact, index) => <div className="public-pre-emergency-contact" key={`emergency-${index}`}>
+            <div className="public-pre-fields">
+              <label className="field-label public-pre-field"><span>Nombre completo del contacto <b className="public-pre-required" aria-hidden="true"> *</b></span><input value={contact.name} onChange={(event) => updateEmergencyContact(index, "name", event.target.value)} required /></label>
+              <label className="field-label public-pre-field"><span>Teléfono <b className="public-pre-required" aria-hidden="true"> *</b></span><input type="tel" inputMode="numeric" placeholder="1234-5678" value={contact.phone} onChange={(event) => updateEmergencyContact(index, "phone", event.target.value)} required /></label>
+              <label className="field-label public-pre-field"><span>Teléfono alternativo <small className="public-pre-optional">Opcional</small></span><input type="tel" inputMode="numeric" placeholder="1234-5678" value={contact.alternatePhone} onChange={(event) => updateEmergencyContact(index, "alternatePhone", event.target.value)} /></label>
+            </div>
+            {index > 0 && <button type="button" className="btn btn-secondary" onClick={() => removeEmergencyContact(index)}>Quitar contacto</button>}
+          </div>)}
+          <button type="button" className="btn btn-secondary" onClick={addEmergencyContact}>Añadir otro contacto</button>
+        </section>
+
+        <section className="public-pre-section public-pre-students-section">
+          <div><h3>Alumnos de esta familia</h3><p>{entryType === "REINSCRIPTION" ? "Se cargan los alumnos de la familia y la respuesta más reciente de preinscripción. Marca quién continuará en 2027 y confirma su grado." : "Agrega a cada alumno y selecciona el grado al que ingresará en 2027."}</p></div>
+          {entryType === "REINSCRIPTION" && !draft.studentId && <div className="student-search-block">
+            <label className="field-label public-pre-field"><span>Buscar alumno existente</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nombre, apellido o código escolar" /></label>
+            <div className="student-search-results">{filteredCandidates.slice(0, 8).map((candidate) => {
+              const nextGrade = candidate.currentGrade ? gradeOptions.find((grade) => grade.id === promotedGrade(candidate.currentGrade!, gradeOptions))?.name : candidate.proposedGrade;
+              return <button type="button" key={candidate.id} className={selectedCandidateId === candidate.id ? "student-search-result selected" : "student-search-result"} onClick={() => { setError(""); setSelectedCandidateId(candidate.id); void importStudent(candidate.id); }}><span><strong>{candidate.firstName} {candidate.lastName}</strong><small>{candidate.currentGrade || "Grado actual por confirmar"} → {nextGrade || "Grado por definir"}</small></span><span className="status-pill success">Importar datos</span></button>;
+            })}</div>
+          </div>}
+          {entryType === "REINSCRIPTION" && draft.studentId && <details className="student-extra-details"><summary>Buscar otra ficha histórica de este alumno</summary><div className="student-search-block"><label className="field-label public-pre-field"><span>Nombre o DPI consignado</span><input value={historicalSearch} onChange={(event) => setHistoricalSearch(event.target.value)} placeholder="Al menos tres caracteres" /></label><button type="button" className="btn btn-secondary" onClick={() => void searchHistoricalIntakes()}>Buscar ficha histórica</button></div></details>}
+          {historicalIntakes.length > 0 && <div className="public-pre-student-list"><h4 className="public-pre-subheading">Fichas históricas disponibles</h4>{historicalIntakes.map((row) => <article className="public-pre-student" key={row.id}><div className="public-pre-student-top"><div><span className="public-pre-student-kicker">Ciclo {row.schoolYear}</span><strong>{row.firstName} {row.lastName}</strong></div><span className="public-pre-grade"><span>{row.sourceGrade || "Grado sin registrar"}</span></span></div><p className="public-pre-form-note">Fila {row.sourceRowId}{row.intakeDocumentNumber ? ` · DPI ${formatDpi(row.intakeDocumentNumber)}` : " · sin DPI válido"}</p><button type="button" className="btn btn-secondary" onClick={() => importHistoricalIntake(row)}>{row.matchedStudentId === draft.studentId ? "Completar datos faltantes" : "Vincular e importar"}</button></article>)}</div>}
+          {students.length > 0 && <div className="public-pre-student-list">{students.map((student, index) => <article className="public-pre-student" key={student.key}>
+            <div className="public-pre-student-top"><div><span className="public-pre-student-kicker">Alumno {index + 1}{student.imported ? " · datos importados" : ""}</span><strong>{student.firstName} {student.lastName}</strong></div>{entryType === "REINSCRIPTION" && <label className={`public-pre-enrollment-choice ${student.alreadyEnrolled ? "is-disabled" : ""}`}><input type="checkbox" checked={student.enroll} disabled={student.alreadyEnrolled} onChange={(event) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, enroll: event.target.checked } : item))} /><span>{student.alreadyEnrolled ? "Ya inscrito en 2027" : student.enroll ? "Inscribir en 2027" : "No inscribir"}</span></label>}<span className="public-pre-grade"><span>{student.currentGrade ? `${student.currentGrade} → ` : ""}{gradeOptions.find((grade) => grade.id === student.gradeId)?.name || "Grado pendiente"}</span></span></div>
+            <div className="public-pre-fields">
+              <label className="field-label public-pre-field"><span>Nombres <b className="public-pre-required" aria-hidden="true"> *</b></span><input value={student.firstName} onChange={(event) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, firstName: event.target.value } : item))} required={entryType !== "REINSCRIPTION" || student.enroll} /></label>
+              <label className="field-label public-pre-field"><span>Apellidos <b className="public-pre-required" aria-hidden="true"> *</b></span><input value={student.lastName} onChange={(event) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, lastName: event.target.value } : item))} required={entryType !== "REINSCRIPTION" || student.enroll} /></label>
+              <DatePartsField label="Fecha de nacimiento" value={student.birthDate || null} minYear={1900} maxYear={new Date().getFullYear()} order="day-month-year" required={entryType !== "REINSCRIPTION" || student.enroll} onChange={(value) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, birthDate: value ?? "" } : item))} />
+              <label className="field-label public-pre-field"><span>Grado para 2027 <b className="public-pre-required" aria-hidden="true"> *</b></span><select value={student.gradeId || ""} onChange={(event) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, gradeId: Number(event.target.value) } : item))} required={entryType !== "REINSCRIPTION" || student.enroll}><option value="">Seleccione</option>{gradeOptions.map((grade) => <option value={grade.id} key={grade.id}>{grade.name}</option>)}</select></label>
+            </div>
+            {entryType !== "REINSCRIPTION" && <button type="button" className="btn btn-secondary" onClick={() => setStudents((current) => current.filter((item) => item.key !== student.key))}>Quitar alumno</button>}
+          </article>)}</div>}
+          {(entryType !== "REINSCRIPTION" || Boolean(draft.studentId || draft.firstName.trim() || draft.lastName.trim())) && <article className="public-pre-student admission-student-draft">
+            <div className="public-pre-student-top"><div><span className="public-pre-student-kicker">Alumno {students.length + 1}{draft.imported ? " · datos importados" : ""}</span><strong>{`${draft.firstName} ${draft.lastName}`.trim() || "Nuevo alumno"}</strong></div><span className="public-pre-grade"><span>{draft.currentGrade ? `${draft.currentGrade} → ` : ""}{draft.gradeId ? draftGradeName : "Grado para 2027"}</span></span></div>
+            <div className="public-pre-fields">
+              <label className="field-label public-pre-field"><span>Nombres <b className="public-pre-required" aria-hidden="true"> *</b></span><input value={draft.firstName} onChange={(event) => setDraft((current) => ({ ...current, firstName: event.target.value }))} required /></label>
+              <label className="field-label public-pre-field"><span>Apellidos <b className="public-pre-required" aria-hidden="true"> *</b></span><input value={draft.lastName} onChange={(event) => setDraft((current) => ({ ...current, lastName: event.target.value }))} required /></label>
+              <DatePartsField label="Fecha de nacimiento" value={draft.birthDate || null} minYear={1900} maxYear={new Date().getFullYear()} order="day-month-year" required onChange={(value) => setDraft((current) => ({ ...current, birthDate: value ?? "" }))} />
+              <label className="field-label public-pre-field"><span>Grado para 2027 <b className="public-pre-required" aria-hidden="true"> *</b></span><select value={draft.gradeId || ""} onChange={(event) => setDraft((current) => ({ ...current, gradeId: Number(event.target.value) }))} required><option value="">Seleccione</option>{gradeOptions.map((grade) => <option value={grade.id} key={grade.id}>{grade.name}{normalizeGrade(grade.name) === "quinto bachillerato" ? " · último grado" : ""}</option>)}</select></label>
+            </div>
+            {entryType === "REINSCRIPTION" && <p className="public-pre-form-note">Grado actual: {draft.currentGrade || "por confirmar"}. El sistema cargó la información disponible de la preinscripción y el ciclo anterior.</p>}
+            <details className="student-extra-details"><summary>Datos adicionales del alumno (CUI y teléfono)</summary><div className="public-pre-fields">
+              <label className="field-label public-pre-field"><span>CUI del alumno</span><input inputMode="numeric" maxLength={15} value={draft.studentDpi} onChange={(event) => setDraft((current) => ({ ...current, studentDpi: formatDpi(event.target.value) }))} /></label>
+              <label className="field-label public-pre-field"><span>Teléfono de contacto</span><span className="phone-field"><SearchableSelect value={draft.phoneCountryCode ?? "GT"} options={countryCodes.map((item) => ({ value: item.countryCode, label: `${item.dialCode} · ${item.countryName}` }))} onChange={(value) => setDraft((current) => ({ ...current, phoneCountryCode: value }))} placeholder="Código de país" /><input type="tel" inputMode="numeric" maxLength={(countryCodes.find((item) => item.countryCode === draft.phoneCountryCode)?.phoneDigits ?? 8) + 1} value={draft.phone} onChange={(event) => { const country = countryCodes.find((item) => item.countryCode === draft.phoneCountryCode); setDraft((current) => ({ ...current, phone: formatPhone(event.target.value, country?.dialCode, country?.phoneDigits) })); }} /></span></label>
+            </div></details>
+            {draft.imported && <p className="public-pre-form-note admission-import-note"><AppIcon name="check" size={16} /> Datos del ciclo anterior importados; puedes actualizarlos antes de guardar.</p>}
+          </article>}
+          {(entryType !== "REINSCRIPTION" || Boolean(draft.studentId || draft.firstName.trim() || draft.lastName.trim())) && <button type="button" className="btn btn-secondary" onClick={queueStudentForContract}><AppIcon name="plus" size={17} /> Agregar otro alumno</button>}
+        </section>
+
+        {error && <p className="public-pre-error" role="alert">{error}</p>}
+        <div className="public-pre-submit-area">
+          <p className="public-pre-privacy">Al guardar, el colegio creará la inscripción del ciclo 2027 con los datos familiares y de cada alumno.</p>
+          <button className="btn btn-primary public-pre-submit" type="submit" disabled={busy || !year}>{busy ? "Guardando…" : "Guardar inscripción"}</button>
+        </div>
+      </form>
+    </div>
   </main>;
 }

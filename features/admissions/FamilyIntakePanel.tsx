@@ -111,6 +111,18 @@ export function FamilyIntakePanel({ family, students, unassigned, enrollmentStat
     if (updated) onOpenChild(candidate, { ...updated.profile, familyName: updated.name });
   }
 
+  async function markContractSigned(enrollment: Enrollment) {
+    setBusy(true);
+    setError("");
+    try {
+      const signedAt = new Date().toLocaleDateString("en-CA", { timeZone: "America/Guatemala" });
+      await save(`enrollments/${enrollment.id}`, { ...enrollment, status: "ACTIVO", profile: { ...enrollment.profile, contractSignedAt: signedAt } }, "PUT");
+      window.location.reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo registrar la firma del contrato.");
+    } finally { setBusy(false); }
+  }
+
   return (
     <div className="family-intake">
       <div className="section-heading">
@@ -168,11 +180,12 @@ export function FamilyIntakePanel({ family, students, unassigned, enrollmentStat
             const enrollment = enrollments.find((item) => item.studentId === child.id);
             return <article className="family-child family-child-actions" key={child.id}>
               <span><strong>{child.firstName} {child.lastName}</strong><small>{child.currentGrade || enrollment?.gradeName || "Grado por definir"}</small></span>
-              <span className={`status-pill ${enrollmentStatuses.get(child.id) === "ACTIVO" ? "success" : "waiting"}`}>
-                {enrollmentStatuses.get(child.id) === "ACTIVO" ? "Inscrito" : enrollmentStatuses.get(child.id) === "PENDIENTE_PAGO" ? "Pendiente de pago" : enrollmentStatuses.get(child.id) === "PENDIENTE_FIRMA" ? "Pendiente de firma" : "Por inscribir"}
+              <span className={`status-pill ${enrollmentStatuses.get(child.id) === "ACTIVO" ? "success" : enrollmentStatuses.get(child.id) === "PENDIENTE_FIRMA" ? "waiting" : "unlinked"}`}>
+                {enrollmentStatuses.get(child.id) === "ACTIVO" ? "Inscrito" : enrollmentStatuses.get(child.id) === "PENDIENTE_FIRMA" ? "Por firmar" : "No inscrito"}
               </span>
-              {canManageEnrollment && <button className="button button-soft" type="button" disabled={busy} onClick={() => void openChild(child)}>Editar inscripción</button>}
-              {enrollment && <a className="button button-primary" href={`/api/operations/enrollments/${enrollment.id}/contract.pdf`} target="_blank" rel="noreferrer">Generar contrato</a>}
+              {canManageEnrollment && <button className="button button-soft" type="button" disabled={busy} onClick={() => void openChild(child)}>Ficha de datos</button>}
+              {enrollment && <a className="button button-primary" href={`/api/operations/enrollments/${enrollment.id}/contract.pdf`} target="_blank" rel="noreferrer">Imprimir contrato</a>}
+              {canManageEnrollment && enrollment?.status === "PENDIENTE_FIRMA" && <button className="button button-soft" type="button" disabled={busy} onClick={() => void markContractSigned(enrollment)}>Marcar contrato firmado</button>}
             </article>;
           })}
           {students.length === 0 && <p className="muted">Agrega el primer alumno de esta familia.</p>}

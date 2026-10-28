@@ -1,16 +1,11 @@
 import { redirect } from "next/navigation";
-import { requireAdmissionsSession } from "@/lib/auth/session";
-import { getAdmissionsOverview } from "@/lib/admissions/repository";
-import { AdmissionsWorkspace } from "@/features/admissions/AdmissionsWorkspace";
-import { firstStaffDestination, getStaffAccess } from "@/lib/auth/access";
 
 export const dynamic = "force-dynamic";
 
-export default async function ImportedFamiliesPage() {
-  const token = await requireAdmissionsSession();
-  const access = await getStaffAccess(token);
-  if (!access.workflow) redirect(firstStaffDestination(access));
-  const overview = await getAdmissionsOverview(token);
-  if (overview.connection === "unauthorized") redirect("/login");
-  return <AdmissionsWorkspace overview={overview} access={access} />;
+export default async function FamilyRoute({ searchParams }: { searchParams: Promise<{ familyId?: string }> }) {
+  const params = await searchParams;
+  const parsedFamilyId = Number(params.familyId);
+  const initialFamilyId = Number.isSafeInteger(parsedFamilyId) && parsedFamilyId > 0 ? parsedFamilyId : null;
+  if (!initialFamilyId) redirect("/");
+  redirect(`/inscripciones/familias/${initialFamilyId}`);
 }

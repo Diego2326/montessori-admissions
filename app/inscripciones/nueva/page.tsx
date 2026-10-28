@@ -15,6 +15,7 @@ export default async function NewAdmissionPage({ searchParams }: { searchParams:
     if (!access.admissions || !access.enrollments) redirect(firstStaffDestination(access));
   }
   const params = await searchParams;
-  const mode = params.mode === "reinscription" ? "REINSCRIPTION" : params.mode === "new" ? "NEW_INCOME" : null;
+  if (!params.mode && !params.familyId && !params.studentId) redirect("/inscripciones/iniciar");
+  const mode = params.mode === "reinscription" ? "REINSCRIPTION" : "NEW_INCOME";
   return <NewAdmissionFlow initialFamilyId={Number(params.familyId) || null} initialStudentId={Number(params.studentId) || null} initialMode={mode} />;
 }

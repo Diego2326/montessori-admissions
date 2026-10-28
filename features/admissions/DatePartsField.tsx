@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Parts = { year: string; month: string; day: string };
 
@@ -27,14 +27,24 @@ export function DatePartsField({
   onChange,
   minYear,
   maxYear,
+  order = "year-month-day",
+  required = false,
+  optional = false,
 }: {
   label: string;
   value: string | null | undefined;
   onChange: (value: string | null) => void;
   minYear: number;
   maxYear: number;
+  order?: "year-month-day" | "day-month-year";
+  required?: boolean;
+  optional?: boolean;
 }) {
   const [parts, setParts] = useState<Parts>(() => parseDate(value));
+
+  useEffect(() => {
+    setParts(parseDate(value));
+  }, [value]);
 
   const selectedYear = Number(parts.year);
   const years = Array.from(
@@ -57,31 +67,22 @@ export function DatePartsField({
     );
   }
 
+  const partsOrder: Array<keyof Parts> = order === "day-month-year" ? ["day", "month", "year"] : ["year", "month", "day"];
+  const labels: Record<keyof Parts, string> = { year: "Año", month: "Mes", day: "Día" };
+
   return (
     <div className="field-label date-field">
-      <span>{label}</span>
+      <span>{label}{required && <b className="public-pre-required" aria-hidden="true"> *</b>}{optional && <small className="public-pre-optional">Opcional</small>}</span>
       <div className="date-parts">
-        <label>
-          Año
-          <select aria-label={`${label}: año`} value={parts.year} onChange={(event) => choose("year", event.target.value)}>
-            <option value="">Año</option>
-            {years.map((year) => <option key={year} value={year}>{year}</option>)}
+        {partsOrder.map((part) => <label key={part}>
+          {labels[part]}
+          <select aria-label={`${label}: ${labels[part].toLocaleLowerCase("es")}`} value={parts[part]} onChange={(event) => choose(part, event.target.value)}>
+            <option value="">{labels[part]}</option>
+            {part === "year" && years.map((year) => <option key={year} value={year}>{year}</option>)}
+            {part === "month" && months.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}
+            {part === "day" && Array.from({ length: maxDay }, (_, index) => index + 1).map((day) => <option key={day} value={day}>{day}</option>)}
           </select>
-        </label>
-        <label>
-          Mes
-          <select aria-label={`${label}: mes`} value={parts.month} onChange={(event) => choose("month", event.target.value)}>
-            <option value="">Mes</option>
-            {months.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}
-          </select>
-        </label>
-        <label>
-          Día
-          <select aria-label={`${label}: día`} value={parts.day} onChange={(event) => choose("day", event.target.value)}>
-            <option value="">Día</option>
-            {Array.from({ length: maxDay }, (_, index) => index + 1).map((day) => <option key={day} value={day}>{day}</option>)}
-          </select>
-        </label>
+        </label>)}
       </div>
     </div>
   );

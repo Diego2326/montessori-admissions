@@ -2,7 +2,7 @@ import type { AdmissionCandidate, AdmissionsOverview } from "@/lib/admissions/ty
 import type {
   Bootstrap, BookPackageItem, Enrollment, EnrollmentProfile, FamilyIntake,
   CheckoutCharge, FamilySummary, LegacyContractAssignment, Order, Product,
-  Receipt, Student,
+  PreEnrollmentSubmissionPage, Receipt, Student,
 } from "@/lib/operations/types";
 
 export function isDemoMode() {
@@ -88,6 +88,28 @@ export function demoOperation<T>(path: string): T {
   if (route === "school-years") return json([{ id: 2027, year: 2027, active: true }]) as T;
   if (route === "admission-workflow/2027/overview") return json({ candidates: demoCandidates }) as T;
   if (route === "admission-workflow/families") return json(families) as T;
+  if (route === "admission-workflow/pre-enrollment-responses") {
+    const submissions: PreEnrollmentSubmissionPage["items"] = [{
+      id: 701,
+      linkId: 601,
+      familyId: 1,
+      familyName: "Méndez López",
+      recipientType: "MOTHER",
+      recipientName: "Andrea López",
+      wantsEnroll: true,
+      selectedStudentPublicIds: ["demo-student-101", "demo-student-102"],
+      submittedAt: "2026-10-20T15:30:00Z",
+      profile: {},
+      students: [
+        { publicId: "demo-student-101", firstName: "Sofía", lastName: "Méndez López", birthDate: null, selected: true, currentGrade: "Preparatoria" },
+        { publicId: "demo-student-102", firstName: "Mateo", lastName: "Méndez López", birthDate: null, selected: true, currentGrade: "Segundo primaria" },
+      ],
+    }];
+    const page = Math.max(1, Number(query.get("page")) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(query.get("pageSize")) || 20));
+    const start = (page - 1) * pageSize;
+    return json({ items: submissions.slice(start, start + pageSize), page, pageSize, total: submissions.length } satisfies PreEnrollmentSubmissionPage) as T;
+  }
   if (route === "admission-workflow/legacy-contracts") return json([
     { contractId: 81, contractDate: "2026-01-08", sourceStudentId: 101, studentName: "Sofía Méndez López", sourceRepresentativeId: 15, representativeName: "Andrea López", matchedStudentId: 101, matchStatus: "MATCHED" },
     { contractId: 82, contractDate: "2026-01-08", sourceStudentId: 102, studentName: "Mateo Méndez López", sourceRepresentativeId: 15, representativeName: "Andrea López", matchedStudentId: 102, matchStatus: "MATCHED" },
