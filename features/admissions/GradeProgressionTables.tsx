@@ -23,6 +23,17 @@ const FALLBACK_GRADE_ORDER = [
 ];
 const TABLE_PAGE_SIZE = 5;
 const RESPONSE_PAGE_SIZE = 100;
+type EnrollmentStatusFilter = "all" | "unregistered" | "ACTIVO" | "PENDIENTE_FIRMA" | "PENDIENTE_PAGO" | "INACTIVO" | "RETIRADO";
+
+const enrollmentStatusOptions: { value: EnrollmentStatusFilter; label: string }[] = [
+  { value: "all", label: "Todos los estados" },
+  { value: "unregistered", label: "Sin inscripción 2027" },
+  { value: "PENDIENTE_FIRMA", label: "Pendiente de firma" },
+  { value: "PENDIENTE_PAGO", label: "Pendiente de pago" },
+  { value: "ACTIVO", label: "Inscrito" },
+  { value: "INACTIVO", label: "Inactivo" },
+  { value: "RETIRADO", label: "Retirado" },
+];
 
 function isFinalBachilleratoGrade(grade: string | null) {
   const normalized = (grade ?? "")
@@ -45,6 +56,21 @@ function normalizeSearch(value: string) {
 
 function transitionKey(from: string, to: string) {
   return `${from} → ${to}`;
+}
+
+function enrollmentStatusLabel(status?: string) {
+  if (status === "ACTIVO") return "Inscrito";
+  if (status === "PENDIENTE_FIRMA") return "Pendiente de firma";
+  if (status === "PENDIENTE_PAGO") return "Pendiente de pago";
+  if (status === "INACTIVO") return "Inactivo";
+  if (status === "RETIRADO") return "Retirado";
+  return "No inscrito";
+}
+
+function enrollmentStatusClassName(status?: string) {
+  if (status === "ACTIVO") return "complete";
+  if (status === "PENDIENTE_FIRMA" || status === "PENDIENTE_PAGO") return "pending";
+  return "unlinked";
 }
 
 function reinscriptionHref(student: AdmissionCandidate) {
@@ -134,13 +160,13 @@ function GradeTransitionTable({
                 submittedFamilyIds,
               );
               const enrollment = enrollments.find((item) => item.studentId === student.id);
-              const enrollmentStatus = enrollment?.status === "ACTIVO" ? "Inscrito" : enrollment?.status === "PENDIENTE_FIRMA" ? "Por firmar" : "No inscrito";
+              const enrollmentStatus = enrollmentStatusLabel(enrollment?.status);
               return (
                 <tr key={student.id}>
                   <td>{student.familyName || "Familia sin vincular"}</td>
                   <td>{`${student.firstName} ${student.lastName}`.trim()}</td>
                   <td><span className={`pre-enrollment-status ${status.className}`}>{status.label}</span></td>
-                  <td><span className={`pre-enrollment-status ${enrollment?.status === "ACTIVO" ? "complete" : enrollment ? "pending" : "unlinked"}`}>{enrollmentStatus}</span></td>
+                  <td><span className={`pre-enrollment-status ${enrollmentStatusClassName(enrollment?.status)}`}>{enrollmentStatus}</span></td>
                   <td>
                     <div className="grade-table-actions">
                       <Link className="grade-row-action" href={reinscriptionHref(student)}>Iniciar reinscripción</Link>
@@ -186,6 +212,7 @@ export function GradeProgressionTables({
   const [search, setSearch] = useState("");
   const [transitionFilter, setTransitionFilter] = useState("all");
   const [preEnrollmentFilter, setPreEnrollmentFilter] = useState("all");
+  const [enrollmentStatusFilter, setEnrollmentStatusFilter] = useState<EnrollmentStatusFilter>("all");
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -245,6 +272,8 @@ export function GradeProgressionTables({
     };
   }, []);
 
+  const enrollmentByStudent = useMemo(() => new Map(enrollments.map((enrollment) => [enrollment.studentId, enrollment])), [enrollments]);
+
   const tables = useMemo(() => {
     const familyByStudent = new Map<number, { familyId: number; familyName: string; currentGrade: string | null }>();
     for (const family of families) {
@@ -259,7 +288,6 @@ export function GradeProgressionTables({
       }
     }
 
-    const enrollmentByStudent = new Map(enrollments.map((enrollment) => [enrollment.studentId, enrollment]));
     const students = new Map<number, AdmissionCandidate>();
 
     for (const candidate of initialCandidates) {
@@ -336,14 +364,17 @@ export function GradeProgressionTables({
             submittedFamilyIds,
           );
           const matchesPreEnrollment = preEnrollmentFilter === "all" || status.className === preEnrollmentFilter;
-          return matchesTransition && matchesSearch && matchesPreEnrollment;
+          const enrollmentStatus = enrollmentByStudent.get(student.id)?.status;
+          const matchesEnrollmentStatus = enrollmentStatusFilter === "all"
+            || (enrollmentStatusFilter === "unregistered" ? !enrollmentStatus : enrollmentStatus === enrollmentStatusFilter);
+          return matchesTransition && matchesSearch && matchesPreEnrollment && matchesEnrollmentStatus;
         }),
       }))
       .filter((table) => table.rows.length > 0);
-  }, [tables, search, transitionFilter, preEnrollmentFilter, preEnrollmentStatusLoaded, preEnrollmentStatusAvailable, submittedFamilyIds]);
+  }, [tables, search, transitionFilter, preEnrollmentFilter, enrollmentStatusFilter, enrollmentByStudent, preEnrollmentStatusLoaded, preEnrollmentStatusAvailable, submittedFamilyIds]);
 
   const visibleStudentCount = visibleTables.reduce((total, table) => total + table.rows.length, 0);
-  const pageResetKey = `${normalizeSearch(search)}\u0000${transitionFilter}\u0000${preEnrollmentFilter}`;
+  const pageResetKey = `${normalizeSearch(search)}\u0000${transitionFilter}\u0000${preEnrollmentFilter}\u0000${enrollmentStatusFilter}`;
 
   return (
     <section className="grade-tables-section" aria-label="Familias agrupadas por transición de grado">
@@ -376,6 +407,12 @@ export function GradeProgressionTables({
             <option value="pending">Pendiente</option>
             <option value="unlinked">Sin familia</option>
             <option value="unavailable">No disponible</option>
+          </select>
+        </label>
+        <label className="grade-table-filter">
+          <span>Estado de inscripción</span>
+          <select value={enrollmentStatusFilter} onChange={(event) => setEnrollmentStatusFilter(event.target.value as EnrollmentStatusFilter)}>
+            {enrollmentStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>
       </div>
