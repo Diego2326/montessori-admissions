@@ -43,7 +43,7 @@ export default async function StartAdmissionPage() {
             <Link className="entry-choice" href="/inscripciones/nueva?mode=new">
               <span className="stat-icon mint"><AppIcon name="plus" /></span>
               <strong>Inscripción</strong>
-              <small>Alumno nuevo. Inicia con los datos de la familia, padres, representante y alumnos.</small>
+              <small>Crea la familia con sus apellidos y registra a cada alumno nuevo con su grado para 2027.</small>
               <span className="button button-primary">Continuar <AppIcon name="arrow" size={18} /></span>
             </Link>
             <Link className="entry-choice" href="/inscripciones/reinscripcion">
