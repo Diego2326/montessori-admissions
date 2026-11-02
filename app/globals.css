@@ -489,6 +489,10 @@ body {
   cursor: wait;
   opacity: .65;
 }
+.family-sheet-child-actions button.is-locked:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
 .family-sheet-empty,
 .family-sheet-message {
   color: #647493;

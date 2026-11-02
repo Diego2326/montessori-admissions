@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-type Search = Promise<{ familyId?: string; studentId?: string; mode?: string }>;
+type Search = Promise<{ familyId?: string; studentId?: string; enrollmentId?: string; mode?: string }>;
 
 export default async function NewAdmissionPage({ searchParams }: { searchParams: Search }) {
   if (!isDemoMode()) {
@@ -16,5 +16,5 @@ export default async function NewAdmissionPage({ searchParams }: { searchParams:
   }
   const params = await searchParams;
   const mode = params.mode === "reinscription" ? "REINSCRIPTION" : "NEW_INCOME";
-  return <NewAdmissionFlow initialFamilyId={Number(params.familyId) || null} initialStudentId={Number(params.studentId) || null} initialMode={mode} />;
+  return <NewAdmissionFlow initialFamilyId={Number(params.familyId) || null} initialStudentId={Number(params.studentId) || null} initialEnrollmentId={Number(params.enrollmentId) || null} initialMode={mode} />;
 }

@@ -152,15 +152,17 @@ function InsuranceChoiceFields({ nameKey, value, otherName, disabled = false, on
   </fieldset>;
 }
 
-export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = null, initialMode = null }: { initialFamilyId?: number | null; initialStudentId?: number | null; initialMode?: EntryType | null }) {
+export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = null, initialEnrollmentId = null, initialMode = null }: { initialFamilyId?: number | null; initialStudentId?: number | null; initialEnrollmentId?: number | null; initialMode?: EntryType | null }) {
   const router = useRouter();
-  const entryType = initialMode ?? "NEW_INCOME";
+  const entryType = initialEnrollmentId ? "REINSCRIPTION" : initialMode ?? "NEW_INCOME";
   const [candidates, setCandidates] = useState<AdmissionCandidate[]>([]);
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
   const [countryCodes, setCountryCodes] = useState<CountryCallingCode[]>([]);
   const [phoneCountries, setPhoneCountries] = useState<Record<string, string>>({});
   const [familyId, setFamilyId] = useState<number | null>(initialFamilyId);
   const [familyName, setFamilyName] = useState("");
+  const [editingEnrollment, setEditingEnrollment] = useState<Enrollment | null>(null);
+  const [editingLoadComplete, setEditingLoadComplete] = useState(initialEnrollmentId == null);
   const [profile, setProfile] = useState<EnrollmentProfile>({ submissionDate: localDate() });
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([{ name: "", phone: "", alternatePhone: "" }]);
   const [search, setSearch] = useState("");
@@ -186,19 +188,75 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
       setCountryCodes(countryRows);
       setPhoneCountries(Object.fromEntries(["motherPhone", "motherHomePhone", "motherOfficePhone", "fatherPhone", "fatherHomePhone", "fatherOfficePhone", "emergencyPhone", "emergencyContactPhone", "representativeHomePhone", "representativeOfficePhone", "representativeMobilePhone"].map((key) => [key, "GT"])));
       const family = familyRows.find((item) => item.id === initialFamilyId);
-      if (family) {
-        setFamilyName(family.name);
+      let savedFamilyName = family?.name ?? "";
+      let savedFamilyProfile: EnrollmentProfile = {};
+      if (initialFamilyId) {
+        setFamilyName(savedFamilyName);
         try {
-          const detail = await operation<FamilyIntake>(`admission-workflow/families/${family.id}`);
+          const detail = await operation<FamilyIntake>(`admission-workflow/families/${initialFamilyId}`);
           if (!active) return;
           const savedProfile = profileValues(detail.profile);
-          setFamilyName(detail.name || family.name);
+          savedFamilyProfile = savedProfile;
+          savedFamilyName = detail.name || savedFamilyName;
+          setFamilyName(savedFamilyName);
           setProfile(hydrateParentRepresentative({ submissionDate: localDate(), ...savedProfile }));
           setEmergencyContacts(emergencyContactsFromProfile(savedProfile));
         } catch {
           if (!active) return;
+          if (initialEnrollmentId) throw new Error("No se pudo cargar la ficha familiar. No se puede editar la inscripción sin cargar sus datos actuales.");
           setError("No se pudo cargar la ficha guardada de la familia. Puedes continuar y volver a intentarlo.");
         }
+      }
+      if (initialEnrollmentId) {
+        const existing = await operation<Enrollment>(`enrollments/${initialEnrollmentId}`);
+        if (!active) return;
+        if (existing.schoolYear !== 2027 || existing.status !== "PENDIENTE_FIRMA") {
+          setError(existing.status === "ACTIVO" ? "Esta inscripción ya está activa y no se puede editar." : "Sólo se pueden editar inscripciones de 2027 pendientes de firma.");
+          return;
+        }
+        if (!initialFamilyId || (initialStudentId && existing.studentId !== initialStudentId)) {
+          setError("La familia o el alumno no coinciden con esta inscripción.");
+          return;
+        }
+        const candidate = overview.candidates.find((item) => item.id === existing.studentId);
+        if (candidate?.familyId && candidate.familyId !== initialFamilyId) {
+          setError("La inscripción no pertenece a esta familia.");
+          return;
+        }
+        const enrollmentProfile = profileValues(existing.profile ?? {});
+        const mergedProfile = hydrateParentRepresentative({
+          submissionDate: localDate(),
+          ...savedFamilyProfile,
+          ...enrollmentProfile,
+        });
+        setEditingEnrollment(existing);
+        setFamilyId(initialFamilyId ?? candidate?.familyId ?? null);
+        setFamilyName(savedFamilyName || candidate?.familyName || String(mergedProfile.familyName ?? ""));
+        setProfile(mergedProfile);
+        setEmergencyContacts(emergencyContactsFromProfile(mergedProfile));
+        const studentPhone = String(enrollmentProfile.studentPhone ?? "");
+        const insuranceSelection = enrollmentProfile.insuranceSelection === "SCHOOL" || enrollmentProfile.insuranceSelection === "OTHER" ? enrollmentProfile.insuranceSelection : "";
+        setStudents([{
+          key: `student-${existing.studentId}`,
+          studentId: existing.studentId,
+          studentUuid: existing.studentUuid ?? candidate?.uuid ?? undefined,
+          firstName: existing.studentFirstName?.trim() || candidate?.firstName || "",
+          lastName: existing.studentLastName?.trim() || candidate?.lastName || "",
+          currentGrade: candidate?.currentGrade ?? existing.gradeName ?? "",
+          gradeId: existing.gradeId,
+          birthDate: String(enrollmentProfile.birthDate ?? candidate?.birthDate ?? ""),
+          studentDpi: String(enrollmentProfile.studentDpi ?? ""),
+          phone: formatPhone(studentPhone),
+          phoneCountryCode: "GT",
+          insuranceSelection,
+          otherInsuranceName: String(enrollmentProfile.otherInsuranceName ?? ""),
+          imported: true,
+          enroll: true,
+        }]);
+        setDraft({ key: "student-draft", firstName: "", lastName: "", currentGrade: "", gradeId: 0, birthDate: "", studentDpi: "", phone: "", phoneCountryCode: "GT", insuranceSelection: "", otherInsuranceName: "", imported: false, enroll: true });
+        setSelectedCandidateId(existing.studentId);
+        setSearch("");
+        return;
       }
       if (initialStudentId) {
         const candidate = overview.candidates.find((item) => item.id === initialStudentId);
@@ -211,7 +269,9 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
           }
         }
       }
-    }).catch((cause) => setError(cause instanceof Error ? cause.message : "No se pudieron cargar los datos demo"));
+    }).catch((cause) => setError(cause instanceof Error ? cause.message : "No se pudieron cargar los datos demo")).finally(() => {
+      if (active && initialEnrollmentId) setEditingLoadComplete(true);
+    });
     return () => { active = false; };
   // The initial URL values are fixed for this page instance.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -515,17 +575,23 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
 
   async function submit() {
     setFieldErrors({});
-    const enrollmentStudents = entryType === "REINSCRIPTION"
+    const enrollmentStudents = editingEnrollment
+      ? [...students]
+      : entryType === "REINSCRIPTION"
       ? students.filter((student) => student.enroll && !student.alreadyEnrolled)
       : [...students];
-    const hasDraftStudent = Boolean(draft.firstName.trim() || draft.lastName.trim() || draft.studentId);
+    const hasDraftStudent = !editingEnrollment && Boolean(draft.firstName.trim() || draft.lastName.trim() || draft.studentId);
     if (hasDraftStudent) {
       const student = validateStudentDraft();
       if (!student) return;
       enrollmentStudents.push(student);
     }
-    if (enrollmentStudents.some((student) => !student.insuranceSelection || (student.insuranceSelection === "OTHER" && !student.otherInsuranceName.trim()))) {
+    if (!editingEnrollment && enrollmentStudents.some((student) => !student.insuranceSelection || (student.insuranceSelection === "OTHER" && !student.otherInsuranceName.trim()))) {
       setError("Cada alumno que se inscribirá debe tener un seguro seleccionado. Si es de otra aseguradora, indica cuál.");
+      return;
+    }
+    if (editingEnrollment && (editingEnrollment.status !== "PENDIENTE_FIRMA" || enrollmentStudents.length !== 1 || enrollmentStudents[0]?.studentId !== editingEnrollment.studentId)) {
+      setError("Sólo se pueden editar los datos del alumno de una inscripción pendiente de firma.");
       return;
     }
     if (!entryType || !enrollmentStudents.length || !year) { setError(entryType === "REINSCRIPTION" ? "Selecciona al menos un alumno que continuará en 2027." : "Agrega al menos un alumno y confirma el ciclo 2027."); return; }
@@ -625,13 +691,55 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
         const country = countryCodes.find((item) => item.countryCode === code);
         if (value && country) timestampedProfile[key] = `${country.dialCode} ${formatPhone(String(value), country.dialCode, country.phoneDigits)}`;
       }
-      for (const student of enrollmentStudents) {
-        if (!student.studentId) continue;
-        const existing = await operation<Enrollment[]>(`students/${student.studentId}/enrollments`);
-        if (existing.some((item) => item.schoolYear === 2027)) throw new Error(`${student.firstName} ${student.lastName} ya está inscrito en 2027. Actualiza su inscripción desde la ficha existente.`);
+      if (!editingEnrollment) {
+        for (const student of enrollmentStudents) {
+          if (!student.studentId) continue;
+          const existing = await operation<Enrollment[]>(`students/${student.studentId}/enrollments`);
+          if (existing.some((item) => item.schoolYear === 2027)) throw new Error(`${student.firstName} ${student.lastName} ya está inscrito en 2027. Actualiza su inscripción desde la ficha existente.`);
+        }
       }
       const representativeFullName = `${effectiveProfile.representativeFirstName ?? ""} ${effectiveProfile.representativeLastName ?? ""}`.trim();
       const defaultName = String(entryType === "NEW_INCOME" ? familyName.trim() : familyName || profile.motherName || profile.fatherName || representativeFullName || "Nueva familia").trim();
+      if (editingEnrollment) {
+        if (!familyId) throw new Error("No se encontró la familia vinculada a esta inscripción.");
+        const latestEnrollment = await operation<Enrollment>(`enrollments/${editingEnrollment.id}`);
+        if (latestEnrollment.schoolYear !== 2027 || latestEnrollment.status !== "PENDIENTE_FIRMA") {
+          throw new Error("El contrato ya fue firmado o la inscripción cambió de estado. No se guardaron los cambios.");
+        }
+        const student = enrollmentStudents[0];
+        const familyProfile = {
+          ...timestampedProfile,
+          emergencyContacts: emergencyContacts.map((contact) => ({ name: contact.name.trim(), phone: contact.phone.trim(), alternatePhone: contact.alternatePhone.trim() || null })),
+        };
+        await save<FamilyIntake>(`admission-workflow/families/${familyId}`, { name: defaultName, profile: familyProfile }, "PUT");
+        const existingProfile = latestEnrollment.profile ?? {};
+        const studentCountry = countryCodes.find((item) => item.countryCode === student.phoneCountryCode);
+        await save<Enrollment>(`enrollments/${editingEnrollment.id}`, {
+          firstName: student.firstName,
+          lastName: student.lastName,
+          gradeId: student.gradeId,
+          section: editingEnrollment.section,
+          status: editingEnrollment.status,
+          profile: {
+            ...existingProfile,
+            ...timestampedProfile,
+            contractNumber: existingProfile.contractNumber ?? null,
+            contractDiacoResolution: existingProfile.contractDiacoResolution ?? null,
+            enrollmentFee: existingProfile.enrollmentFee ?? null,
+            monthlyFee: existingProfile.monthlyFee ?? null,
+            contractSignedAt: existingProfile.contractSignedAt ?? null,
+            familyName: defaultName,
+            birthDate: student.birthDate || null,
+            studentDpi: student.studentDpi || null,
+            studentPhone: student.phone ? `${studentCountry?.dialCode ?? "+502"} ${formatPhone(student.phone, studentCountry?.dialCode, studentCountry?.phoneDigits)}` : null,
+            insuranceSelection: student.insuranceSelection || null,
+            otherInsuranceName: student.insuranceSelection === "OTHER" ? student.otherInsuranceName.trim() : null,
+            currentGrade: student.currentGrade || null,
+          },
+        }, "PUT");
+        router.replace(`/inscripciones/familias/${familyId}`);
+        return;
+      }
       const saved = await save<{ family: FamilyIntake; enrollments: Enrollment[] }>("admission-workflow/intakes", {
         familyId, familyName: defaultName,
         profile: { ...timestampedProfile, emergencyContacts: emergencyContacts.map((contact) => ({ name: contact.name.trim(), phone: contact.phone.trim(), alternatePhone: contact.alternatePhone.trim() || null })) },
@@ -695,22 +803,33 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
   const draftGradeName = gradeOptions.find((grade) => grade.id === draft.gradeId)?.name ?? "Grado para 2027";
   const submitForm = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void submit(); };
 
+  if (initialEnrollmentId && (!editingLoadComplete || !editingEnrollment)) {
+    return <main className="public-boleta-page public-boleta-site public-pre-enrollment-page admission-public-replica">
+      <section className="public-boleta-card public-pre-card">
+        <h1>{editingLoadComplete ? "No se puede editar esta inscripción" : "Cargando inscripción…"}</h1>
+        {editingLoadComplete && <p className="public-pre-error" role="alert">{error || "Sólo se pueden editar inscripciones pendientes de firma."}</p>}
+        {!editingLoadComplete && <p role="status">Verificando que la inscripción siga pendiente de firma.</p>}
+        <button className="btn btn-secondary" type="button" onClick={() => router.push(initialFamilyId ? `/inscripciones/familias/${initialFamilyId}` : "/inscripciones/reinscripcion")}>Volver a la ficha familiar</button>
+      </section>
+    </main>;
+  }
+
   return <main className="public-boleta-page public-boleta-site public-pre-enrollment-page admission-public-replica">
     <header className="public-boleta-site-header">
       <div className="public-boleta-site-brand"><Image unoptimized src="/logo-colegio.png" alt="Escudo Colegio Bilingüe Montessori Zacapa" width={44} height={44} priority /><span><small>COLEGIO BILINGÜE</small><strong>MONTESSORI ZACAPA</strong></span></div>
     </header>
 
     <div className="public-boleta-site-content">
-      <div className="admission-page-nav"><button type="button" className="admission-back-button" onClick={() => router.push(entryType === "REINSCRIPTION" ? "/inscripciones/reinscripcion" : "/inscripciones/iniciar")}>← Volver a inscripciones</button></div>
+      <div className="admission-page-nav"><button type="button" className="admission-back-button" onClick={() => router.push(editingEnrollment && familyId ? `/inscripciones/familias/${familyId}` : entryType === "REINSCRIPTION" ? "/inscripciones/reinscripcion" : "/inscripciones/iniciar")}>← {editingEnrollment ? "Volver a la ficha familiar" : "Volver a inscripciones"}</button></div>
       <section className="public-boleta-site-hero public-pre-hero">
-        <h1>{entryType === "REINSCRIPTION" ? <>Reinscripción <em>2027.</em></> : <>Inscripción de alumnos nuevos <em>2027.</em></>}</h1>
+        <h1>{editingEnrollment ? <>Editar datos <em>2027.</em></> : entryType === "REINSCRIPTION" ? <>Reinscripción <em>2027.</em></> : <>Inscripción de alumnos nuevos <em>2027.</em></>}</h1>
         <p className="public-pre-greeting">{familyName ? `Familia ${familyName}` : "Nueva familia"}</p>
-        <p className="public-pre-intro">{entryType === "REINSCRIPTION" ? "Revisa la respuesta de preinscripción más reciente y confirma los datos de cada alumno para continuar el proceso del ciclo 2027." : "Completa los datos de la familia y del representante, y agrega a cada alumno nuevo con el grado que cursará en 2027."}</p>
+        <p className="public-pre-intro">{editingEnrollment ? "Actualiza los datos familiares y del alumno. El contrato seguirá pendiente de firma." : entryType === "REINSCRIPTION" ? "Revisa la respuesta de preinscripción más reciente y confirma los datos de cada alumno para continuar el proceso del ciclo 2027." : "Completa los datos de la familia y del representante, y agrega a cada alumno nuevo con el grado que cursará en 2027."}</p>
       </section>
 
       <form className="public-boleta-card public-pre-card" onSubmit={submitForm} noValidate>
         <div className="public-pre-form-heading">
-          <div><p className="public-pre-eyebrow">{entryType === "REINSCRIPTION" ? <>Nombre de la familia: <strong>{familyName || "Nueva familia"}</strong></> : "INSCRIPCIÓN · ALUMNOS NUEVOS · 2027"}</p><h2>{entryType === "REINSCRIPTION" ? "Revise y actualice su información" : "Datos de la familia y del representante"}</h2></div>
+          <div><p className="public-pre-eyebrow">{entryType === "REINSCRIPTION" ? <>Nombre de la familia: <strong>{familyName || "Nueva familia"}</strong></> : "INSCRIPCIÓN · ALUMNOS NUEVOS · 2027"}</p><h2>{editingEnrollment ? "Datos de la familia y del alumno" : entryType === "REINSCRIPTION" ? "Revise y actualice su información" : "Datos de la familia y del representante"}</h2></div>
           <p>El teléfono celular del representante es obligatorio; los demás números son opcionales y deben escribirse como 1234-5678 si los ingresas.</p>
         </div>
 
@@ -826,29 +945,29 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
         </section>
 
         <section className="public-pre-section public-pre-students-section">
-          <div><h3>{entryType === "REINSCRIPTION" ? "Alumnos de esta familia" : "Alumnos nuevos"}</h3><p>{entryType === "REINSCRIPTION" ? "Se cargan los alumnos de la familia y la respuesta más reciente de preinscripción. Marca quién continuará en 2027 y agrega otro alumno nuevo a esta familia, si aplica." : "Agrega a cada alumno que ingresará en 2027 y selecciona su grado."}</p></div>
-          {entryType === "REINSCRIPTION" && familyId && !draft.newFamilyStudent && <button type="button" className="btn btn-secondary" onClick={startNewFamilyStudent}><AppIcon name="plus" size={17} /> Agregar alumno nuevo a esta familia</button>}
-          {entryType === "REINSCRIPTION" && !draft.studentId && !draft.newFamilyStudent && <div className="student-search-block">
+          <div><h3>{editingEnrollment ? "Alumno de esta familia" : entryType === "REINSCRIPTION" ? "Alumnos de esta familia" : "Alumnos nuevos"}</h3><p>{editingEnrollment ? "Edita la información del alumno que tiene el contrato pendiente de firma." : entryType === "REINSCRIPTION" ? "Se cargan los alumnos de la familia y la respuesta más reciente de preinscripción. Marca quién continuará en 2027 y agrega otro alumno nuevo a esta familia, si aplica." : "Agrega a cada alumno que ingresará en 2027 y selecciona su grado."}</p></div>
+          {!editingEnrollment && entryType === "REINSCRIPTION" && familyId && !draft.newFamilyStudent && <button type="button" className="btn btn-secondary" onClick={startNewFamilyStudent}><AppIcon name="plus" size={17} /> Agregar alumno nuevo a esta familia</button>}
+          {!editingEnrollment && entryType === "REINSCRIPTION" && !draft.studentId && !draft.newFamilyStudent && <div className="student-search-block">
             <label className="field-label public-pre-field"><span>Buscar alumno existente</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nombre, apellido o código escolar" /></label>
             <div className="student-search-results">{filteredCandidates.slice(0, 8).map((candidate) => {
               const nextGrade = candidate.currentGrade ? gradeOptions.find((grade) => grade.id === promotedGrade(candidate.currentGrade!, gradeOptions))?.name : candidate.proposedGrade;
               return <button type="button" key={candidate.id} className={selectedCandidateId === candidate.id ? "student-search-result selected" : "student-search-result"} onClick={() => { setError(""); setSelectedCandidateId(candidate.id); void importStudent(candidate.id); }}><span><strong>{candidate.firstName} {candidate.lastName}</strong><small>{candidate.currentGrade || "Grado actual por confirmar"} → {nextGrade || "Grado por definir"}</small></span><span className="status-pill success">Importar datos</span></button>;
             })}</div>
           </div>}
-          {entryType === "REINSCRIPTION" && draft.studentId && <details className="student-extra-details"><summary>Buscar otra ficha histórica de este alumno</summary><div className="student-search-block"><label className="field-label public-pre-field"><span>Nombre o DPI consignado</span><input value={historicalSearch} onChange={(event) => setHistoricalSearch(event.target.value)} placeholder="Al menos tres caracteres" /></label><button type="button" className="btn btn-secondary" onClick={() => void searchHistoricalIntakes()}>Buscar ficha histórica</button></div></details>}
-          {historicalIntakes.length > 0 && <div className="public-pre-student-list"><h4 className="public-pre-subheading">Fichas históricas disponibles</h4>{historicalIntakes.map((row) => <article className="public-pre-student" key={row.id}><div className="public-pre-student-top"><div><span className="public-pre-student-kicker">Ciclo {row.schoolYear}</span><strong>{row.firstName} {row.lastName}</strong></div><span className="public-pre-grade"><span>{row.sourceGrade || "Grado sin registrar"}</span></span></div><p className="public-pre-form-note">Fila {row.sourceRowId}{row.intakeDocumentNumber ? ` · DPI ${formatDpi(row.intakeDocumentNumber)}` : " · sin DPI válido"}</p><button type="button" className="btn btn-secondary" onClick={() => importHistoricalIntake(row)}>{row.matchedStudentId === draft.studentId ? "Completar datos faltantes" : "Vincular e importar"}</button></article>)}</div>}
+          {!editingEnrollment && entryType === "REINSCRIPTION" && draft.studentId && <details className="student-extra-details"><summary>Buscar otra ficha histórica de este alumno</summary><div className="student-search-block"><label className="field-label public-pre-field"><span>Nombre o DPI consignado</span><input value={historicalSearch} onChange={(event) => setHistoricalSearch(event.target.value)} placeholder="Al menos tres caracteres" /></label><button type="button" className="btn btn-secondary" onClick={() => void searchHistoricalIntakes()}>Buscar ficha histórica</button></div></details>}
+          {!editingEnrollment && historicalIntakes.length > 0 && <div className="public-pre-student-list"><h4 className="public-pre-subheading">Fichas históricas disponibles</h4>{historicalIntakes.map((row) => <article className="public-pre-student" key={row.id}><div className="public-pre-student-top"><div><span className="public-pre-student-kicker">Ciclo {row.schoolYear}</span><strong>{row.firstName} {row.lastName}</strong></div><span className="public-pre-grade"><span>{row.sourceGrade || "Grado sin registrar"}</span></span></div><p className="public-pre-form-note">Fila {row.sourceRowId}{row.intakeDocumentNumber ? ` · DPI ${formatDpi(row.intakeDocumentNumber)}` : " · sin DPI válido"}</p><button type="button" className="btn btn-secondary" onClick={() => importHistoricalIntake(row)}>{row.matchedStudentId === draft.studentId ? "Completar datos faltantes" : "Vincular e importar"}</button></article>)}</div>}
           {students.length > 0 && <div className="public-pre-student-list">{students.map((student, index) => <article className="public-pre-student" key={student.key}>
-            <div className="public-pre-student-top"><div><span className="public-pre-student-kicker">Alumno {index + 1}{student.newFamilyStudent ? " · alumno nuevo" : student.imported ? " · datos importados" : ""}</span><strong>{student.firstName} {student.lastName}</strong></div>{entryType === "REINSCRIPTION" && <label className={`public-pre-enrollment-choice ${student.alreadyEnrolled ? "is-disabled" : ""}`}><input type="checkbox" checked={student.enroll} disabled={student.alreadyEnrolled} onChange={(event) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, enroll: event.target.checked } : item))} /><span>{student.alreadyEnrolled ? "Ya inscrito en 2027" : student.enroll ? "Inscribir en 2027" : "No inscribir"}</span></label>}<span className="public-pre-grade"><span>{student.currentGrade ? `${student.currentGrade} → ` : ""}{gradeOptions.find((grade) => grade.id === student.gradeId)?.name || "Grado pendiente"}</span></span></div>
+            <div className="public-pre-student-top"><div><span className="public-pre-student-kicker">{editingEnrollment ? "Inscripción pendiente de firma" : `Alumno ${index + 1}${student.newFamilyStudent ? " · alumno nuevo" : student.imported ? " · datos importados" : ""}`}</span><strong>{student.firstName} {student.lastName}</strong></div>{!editingEnrollment && entryType === "REINSCRIPTION" && <label className={`public-pre-enrollment-choice ${student.alreadyEnrolled ? "is-disabled" : ""}`}><input type="checkbox" checked={student.enroll} disabled={student.alreadyEnrolled} onChange={(event) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, enroll: event.target.checked } : item))} /><span>{student.alreadyEnrolled ? "Ya inscrito en 2027" : student.enroll ? "Inscribir en 2027" : "No inscribir"}</span></label>}<span className="public-pre-grade"><span>{student.currentGrade ? `${student.currentGrade} → ` : ""}{gradeOptions.find((grade) => grade.id === student.gradeId)?.name || "Grado pendiente"}</span></span></div>
             <div className="public-pre-fields">
               <label className="field-label public-pre-field"><span>Nombres <b className="public-pre-required" aria-hidden="true"> *</b></span><input value={student.firstName} onChange={(event) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, firstName: event.target.value } : item))} required={entryType !== "REINSCRIPTION" || student.enroll} /></label>
               <label className="field-label public-pre-field"><span>Apellidos <b className="public-pre-required" aria-hidden="true"> *</b></span><input value={student.lastName} onChange={(event) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, lastName: event.target.value } : item))} required={entryType !== "REINSCRIPTION" || student.enroll} /></label>
               <DatePartsField label="Fecha de nacimiento" value={student.birthDate || null} minYear={1900} maxYear={new Date().getFullYear()} order="day-month-year" required={entryType !== "REINSCRIPTION" || student.enroll} onChange={(value) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, birthDate: value ?? "" } : item))} />
               <label className="field-label public-pre-field"><span>Grado para 2027 <b className="public-pre-required" aria-hidden="true"> *</b></span><select value={student.gradeId || ""} onChange={(event) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, gradeId: Number(event.target.value) } : item))} required={entryType !== "REINSCRIPTION" || student.enroll}><option value="">Seleccione</option>{gradeOptions.map((grade) => <option value={grade.id} key={grade.id}>{grade.name}</option>)}</select></label>
             </div>
-            <InsuranceChoiceFields nameKey={student.key} value={student.insuranceSelection} otherName={student.otherInsuranceName} disabled={entryType === "REINSCRIPTION" && (!student.enroll || student.alreadyEnrolled)} onSelection={(value) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, insuranceSelection: value } : item))} onOtherName={(value) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, otherInsuranceName: value } : item))} />
+            {!editingEnrollment && <InsuranceChoiceFields nameKey={student.key} value={student.insuranceSelection} otherName={student.otherInsuranceName} disabled={entryType === "REINSCRIPTION" && (!student.enroll || student.alreadyEnrolled)} onSelection={(value) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, insuranceSelection: value } : item))} onOtherName={(value) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, otherInsuranceName: value } : item))} />}
             {(entryType !== "REINSCRIPTION" || student.newFamilyStudent) && <button type="button" className="btn btn-secondary" onClick={() => setStudents((current) => current.filter((item) => item.key !== student.key))}>Quitar alumno</button>}
           </article>)}</div>}
-          {(entryType !== "REINSCRIPTION" || Boolean(draft.studentId || draft.newFamilyStudent || draft.firstName.trim() || draft.lastName.trim())) && <article className="public-pre-student admission-student-draft">
+          {!editingEnrollment && (entryType !== "REINSCRIPTION" || Boolean(draft.studentId || draft.newFamilyStudent || draft.firstName.trim() || draft.lastName.trim())) && <article className="public-pre-student admission-student-draft">
             <div className="public-pre-student-top"><div><span className="public-pre-student-kicker">Alumno {students.length + 1}{draft.newFamilyStudent ? " · alumno nuevo de la familia" : draft.imported ? " · datos importados" : ""}</span><strong>{`${draft.firstName} ${draft.lastName}`.trim() || (draft.newFamilyStudent ? "Nuevo alumno de esta familia" : "Nuevo alumno")}</strong></div><span className="public-pre-grade"><span>{draft.currentGrade ? `${draft.currentGrade} → ` : ""}{draft.gradeId ? draftGradeName : "Grado para 2027"}</span></span></div>
             <div className="public-pre-fields">
               <label className="field-label public-pre-field"><span>Nombres <b className="public-pre-required" aria-hidden="true"> *</b></span><input value={draft.firstName} onChange={(event) => setDraft((current) => ({ ...current, firstName: event.target.value }))} required /></label>
@@ -865,13 +984,13 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
             {draft.imported && <p className="public-pre-form-note admission-import-note"><AppIcon name="check" size={16} /> Datos del ciclo anterior importados; puedes actualizarlos antes de guardar.</p>}
             {entryType === "REINSCRIPTION" && draft.newFamilyStudent && <button type="button" className="btn btn-secondary" onClick={() => { resetDraftStudent("student-draft"); setError(""); }}>Cancelar alumno nuevo</button>}
           </article>}
-          {(entryType !== "REINSCRIPTION" || Boolean(draft.studentId || draft.newFamilyStudent || draft.firstName.trim() || draft.lastName.trim())) && <button type="button" className="btn btn-secondary" onClick={queueStudentForContract}><AppIcon name="plus" size={17} /> Agregar otro alumno</button>}
+          {!editingEnrollment && (entryType !== "REINSCRIPTION" || Boolean(draft.studentId || draft.newFamilyStudent || draft.firstName.trim() || draft.lastName.trim())) && <button type="button" className="btn btn-secondary" onClick={queueStudentForContract}><AppIcon name="plus" size={17} /> Agregar otro alumno</button>}
         </section>
 
         {error && <p className="public-pre-error" role="alert">{error}</p>}
         <div className="public-pre-submit-area">
-          <p className="public-pre-privacy">{entryType === "REINSCRIPTION" ? "Al guardar, el colegio creará la inscripción del ciclo 2027 con los datos familiares y de cada alumno." : "Al guardar, el colegio creará la familia con estos apellidos y registrará la inscripción de cada alumno nuevo para 2027."}</p>
-          <button className="btn btn-primary public-pre-submit" type="submit" disabled={busy || !year}>{busy ? "Guardando…" : "Guardar inscripción"}</button>
+          <p className="public-pre-privacy">{editingEnrollment ? "Los cambios se guardarán en la ficha de la familia y en esta inscripción pendiente de firma." : entryType === "REINSCRIPTION" ? "Al guardar, el colegio creará la inscripción del ciclo 2027 con los datos familiares y de cada alumno." : "Al guardar, el colegio creará la familia con estos apellidos y registrará la inscripción de cada alumno nuevo para 2027."}</p>
+          <button className="btn btn-primary public-pre-submit" type="submit" disabled={busy || !year}>{busy ? "Guardando…" : editingEnrollment ? "Guardar cambios" : "Guardar inscripción"}</button>
         </div>
       </form>
     </div>
