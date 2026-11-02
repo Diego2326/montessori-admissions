@@ -6,6 +6,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { save } from "@/lib/operations/client";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
 import type { Enrollment, EnrollmentProfile, FamilyIntake } from "@/lib/operations/types";
+import { isDeviceUsePolicyApplicable } from "@/features/admissions/device-use-policy";
 import { FamilyPreEnrollmentLinks } from "./FamilyPreEnrollmentLinks";
 import {
   civilStatusOptions,
@@ -112,11 +113,17 @@ export function FamilyIntakePanel({ family, students, unassigned, enrollmentStat
   }
 
   async function markContractSigned(enrollment: Enrollment) {
+    const requiresDevicePolicy = isDeviceUsePolicyApplicable(enrollment.gradeName, enrollment.schoolYear);
+    const requiredDocuments = [
+      "contrato de adhesión",
+      ...(requiresDevicePolicy ? ["reglamento de uso de dispositivos electrónicos"] : []),
+      ...(enrollment.profile?.insuranceSelection === "SCHOOL" ? ["formulario del seguro escolar"] : []),
+    ];
+    if (!window.confirm(`Confirma que el representante firmó ${requiredDocuments.join(" y ")} de ${enrollment.studentFirstName ?? "este alumno"}.`)) return;
     setBusy(true);
     setError("");
     try {
-      const signedAt = new Date().toLocaleDateString("en-CA", { timeZone: "America/Guatemala" });
-      await save(`enrollments/${enrollment.id}`, { ...enrollment, status: "ACTIVO", profile: { ...enrollment.profile, contractSignedAt: signedAt } }, "PUT");
+      await save(`enrollments/${enrollment.id}/contract-signature`, {}, "POST");
       window.location.reload();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo registrar la firma del contrato.");
@@ -185,7 +192,8 @@ export function FamilyIntakePanel({ family, students, unassigned, enrollmentStat
               </span>
               {canManageEnrollment && <button className="button button-soft" type="button" disabled={busy} onClick={() => void openChild(child)}>Ficha de datos</button>}
               {enrollment && <a className="button button-primary" href={`/api/operations/enrollments/${enrollment.id}/contract.pdf`} target="_blank" rel="noreferrer">Imprimir contrato</a>}
-              {canManageEnrollment && enrollment?.status === "PENDIENTE_FIRMA" && <button className="button button-soft" type="button" disabled={busy} onClick={() => void markContractSigned(enrollment)}>Marcar contrato firmado</button>}
+              {enrollment && isDeviceUsePolicyApplicable(enrollment.gradeName, enrollment.schoolYear) && <a className="button button-soft" href={`/api/operations/enrollments/${enrollment.id}/device-use-policy.pdf`} target="_blank" rel="noreferrer">Imprimir reglamento de dispositivos</a>}
+              {canManageEnrollment && enrollment?.status === "PENDIENTE_FIRMA" && <button className="button button-soft" type="button" disabled={busy} onClick={() => void markContractSigned(enrollment)}>Marcar documentos firmados</button>}
             </article>;
           })}
           {students.length === 0 && <p className="muted">Agrega el primer alumno de esta familia.</p>}

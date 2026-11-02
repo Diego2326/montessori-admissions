@@ -5,6 +5,7 @@ import Link from "next/link";
 import { operation } from "@/lib/operations/client";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
 import type { Bootstrap, Enrollment, FamilySummary, PreEnrollmentSubmissionPage } from "@/lib/operations/types";
+import { isDeviceUsePolicyApplicable } from "@/features/admissions/device-use-policy";
 
 const FALLBACK_GRADE_ORDER = [
   "Kinder",
@@ -172,6 +173,7 @@ function GradeTransitionTable({
                       <Link className="grade-row-action" href={reinscriptionHref(student)}>Iniciar reinscripción</Link>
                       {student.familyId && <a className="grade-row-action secondary" href={`/inscripciones/familias/${student.familyId}`}>Ficha de datos</a>}
                       {enrollment && <a className="grade-row-action secondary" href={`/api/operations/enrollments/${enrollment.id}/contract.pdf`} target="_blank" rel="noreferrer">Imprimir contrato</a>}
+                      {enrollment && isDeviceUsePolicyApplicable(enrollment.gradeName, enrollment.schoolYear) && <a className="grade-row-action secondary" href={`/api/operations/enrollments/${enrollment.id}/device-use-policy.pdf`} target="_blank" rel="noreferrer">Imprimir reglamento</a>}
                     </div>
                   </td>
                 </tr>

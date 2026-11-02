@@ -7,6 +7,7 @@ import Link from "next/link";
 import { operation, save } from "@/lib/operations/client";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
 import type { Bootstrap, Enrollment, FamilyIntake } from "@/lib/operations/types";
+import { isDeviceUsePolicyApplicable } from "@/features/admissions/device-use-policy";
 
 type FamilyChild = {
   id: number;
@@ -355,6 +356,7 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
               {children.map((child) => {
                 const enrollment = enrollments.find((item) => item.studentId === child.id);
                 const status = enrollmentLabel(enrollment);
+                const requiresDevicePolicy = Boolean(enrollment && isDeviceUsePolicyApplicable(enrollment.gradeName, enrollment.schoolYear));
                 return <article className="family-sheet-child" key={child.id}>
                   <div className="family-sheet-child-name"><strong>{child.firstName} {child.lastName}</strong><span>{child.currentGrade || enrollment?.gradeName || "Grado sin registrar"}</span></div>
                   <span className={`pre-enrollment-status ${status.className}`}>{status.label}</span>
@@ -364,7 +366,8 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
                     {enrollment && enrollment.status !== "PENDIENTE_FIRMA" && <button type="button" className="is-locked" disabled title={enrollment.status === "ACTIVO" ? "Una inscripción activa no se puede editar." : "Esta inscripción no se puede editar."} aria-label={`Editar datos de ${child.firstName} ${child.lastName}: la inscripción no se puede editar`}>Editar datos</button>}
                     {enrollment && <a className="subtle" href={`/api/operations/enrollments/${enrollment.id}/contract.pdf`} target="_blank" rel="noreferrer">Imprimir contrato</a>}
                     {enrollment?.profile?.insuranceSelection === "SCHOOL" && <a className="subtle" href={`/api/operations/enrollments/${enrollment.id}/insurance.pdf`} target="_blank" rel="noreferrer">Imprimir seguro escolar</a>}
-                    {enrollment?.status === "PENDIENTE_FIRMA" && <button type="button" disabled={busyEnrollmentId === enrollment.id} onClick={() => setSignatureTarget(enrollment)}>{busyEnrollmentId === enrollment.id ? "Guardando…" : "Marcar contrato firmado"}</button>}
+                    {enrollment && requiresDevicePolicy && <a className="subtle" href={`/api/operations/enrollments/${enrollment.id}/device-use-policy.pdf`} target="_blank" rel="noreferrer">Imprimir reglamento de dispositivos</a>}
+                    {enrollment?.status === "PENDIENTE_FIRMA" && <button type="button" disabled={busyEnrollmentId === enrollment.id} onClick={() => setSignatureTarget(enrollment)}>{busyEnrollmentId === enrollment.id ? "Guardando…" : "Marcar documentos firmados"}</button>}
                   </div>
                 </article>;
               })}
@@ -384,11 +387,11 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
       {signatureTarget && <div className="family-sheet-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && busyEnrollmentId == null) setSignatureTarget(null); }}>
         <section className="family-sheet-confirm" role="dialog" aria-modal="true" aria-labelledby="signature-confirm-title">
           <span className="family-sheet-label">CONFIRMACIÓN</span>
-          <h2 id="signature-confirm-title">¿El representante ya firmó el contrato?</h2>
-          <p>Se registrará la firma del contrato impreso de <strong>{signatureTarget.studentFirstName} {signatureTarget.studentLastName}</strong> y quedará guardado qué usuario hizo el cambio.</p>
+          <h2 id="signature-confirm-title">¿El representante ya firmó los documentos obligatorios?</h2>
+          <p>Confirma que <strong>{signatureTarget.studentFirstName} {signatureTarget.studentLastName}</strong> tiene firmado el contrato de adhesión{isDeviceUsePolicyApplicable(signatureTarget.gradeName, signatureTarget.schoolYear) ? " y el reglamento de uso de dispositivos electrónicos" : ""}{signatureTarget.profile?.insuranceSelection === "SCHOOL" ? " y el formulario del seguro escolar" : ""}. Se guardará qué usuario registró las firmas.</p>
           <div className="family-sheet-confirm-actions">
             <button type="button" className="cancel" disabled={busyEnrollmentId === signatureTarget.id} onClick={() => setSignatureTarget(null)}>Cancelar</button>
-            <button type="button" disabled={busyEnrollmentId === signatureTarget.id} onClick={() => void markContractSigned(signatureTarget)}>{busyEnrollmentId === signatureTarget.id ? "Guardando…" : "Sí, registrar firma"}</button>
+            <button type="button" disabled={busyEnrollmentId === signatureTarget.id} onClick={() => void markContractSigned(signatureTarget)}>{busyEnrollmentId === signatureTarget.id ? "Guardando…" : "Sí, registrar firmas"}</button>
           </div>
         </section>
       </div>}

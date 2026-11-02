@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { operation } from "@/lib/operations/client";
 import type { Enrollment } from "@/lib/operations/types";
+import { isDeviceUsePolicyApplicable } from "@/features/admissions/device-use-policy";
 
 export function EnrollmentContractPreview({
   enrollmentIds,
@@ -22,7 +23,11 @@ export function EnrollmentContractPreview({
   const [pdfLoading, setPdfLoading] = useState(true);
   const [insurancePdfUrl, setInsurancePdfUrl] = useState<string | null>(null);
   const [insurancePdfLoading, setInsurancePdfLoading] = useState(false);
+  const [devicePolicyPdfUrl, setDevicePolicyPdfUrl] = useState<string | null>(null);
+  const [devicePolicyPdfLoading, setDevicePolicyPdfLoading] = useState(false);
   const [error, setError] = useState("");
+  const enrollment = enrollments.find((item) => item.id === selectedId);
+  const requiresDevicePolicy = isDeviceUsePolicyApplicable(enrollment?.gradeName, enrollment?.schoolYear);
 
   useEffect(() => {
     let active = true;
@@ -65,7 +70,6 @@ export function EnrollmentContractPreview({
     };
   }, [selectedId]);
 
-  const enrollment = enrollments.find((item) => item.id === selectedId);
   const insuranceSelection = String(enrollment?.profile?.insuranceSelection ?? "");
   const otherInsuranceName = String(enrollment?.profile?.otherInsuranceName ?? "");
   const studentName = enrollment
@@ -105,6 +109,39 @@ export function EnrollmentContractPreview({
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [selectedId, insuranceSelection]);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+    const abortController = new AbortController();
+    setDevicePolicyPdfUrl(null);
+    if (!requiresDevicePolicy) {
+      setDevicePolicyPdfLoading(false);
+      return () => { active = false; abortController.abort(); };
+    }
+    setDevicePolicyPdfLoading(true);
+    void fetch(`/api/operations/enrollments/${selectedId}/device-use-policy.pdf`, { cache: "no-store", signal: abortController.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null) as { error?: string; message?: string } | null;
+          throw new Error(payload?.error || payload?.message || "No se pudo preparar el reglamento de dispositivos.");
+        }
+        const blob = await response.blob();
+        if (blob.type !== "application/pdf") throw new Error("La respuesta no contiene un PDF del reglamento.");
+        objectUrl = URL.createObjectURL(blob);
+        if (active) setDevicePolicyPdfUrl(objectUrl);
+        else URL.revokeObjectURL(objectUrl);
+      })
+      .catch((cause) => {
+        if (active && cause instanceof Error && cause.name !== "AbortError") setError(cause.message || "No se pudo preparar el reglamento.");
+      })
+      .finally(() => { if (active) setDevicePolicyPdfLoading(false); });
+    return () => {
+      active = false;
+      abortController.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [selectedId, requiresDevicePolicy]);
 
   return (
     <>
@@ -157,6 +194,17 @@ export function EnrollmentContractPreview({
                 </div>
               </> : insuranceSelection === "OTHER" ? <p className="insurance-external-note">La familia indicó cobertura con <strong>{otherInsuranceName || "otra aseguradora"}</strong>. No se genera formulario de Banrural.</p> : <p className="insurance-external-note">El seguro todavía no está registrado en la inscripción.</p>}
             </section>
+
+            {requiresDevicePolicy && <section className="insurance-preview-section" aria-labelledby="device-policy-preview-title">
+              <div className="insurance-preview-heading"><div><p className="family-sheet-label">DOCUMENTO OBLIGATORIO</p><h2 id="device-policy-preview-title">Reglamento de uso de dispositivos electrónicos</h2></div></div>
+              <p>Se preparó el reglamento para el grado que cursará el alumno en 2027. Debe imprimirse y firmarse junto con el contrato de adhesión.</p>
+              {devicePolicyPdfLoading && <div className="contract-preview-loading" role="status">Preparando el reglamento…</div>}
+              {devicePolicyPdfUrl && <iframe className="contract-preview-frame insurance-preview-frame" title={`Reglamento de dispositivos para ${studentName}`} src={devicePolicyPdfUrl} />}
+              <div className="contract-preview-actions insurance-preview-actions">
+                {devicePolicyPdfUrl && <a className="contract-preview-button secondary" href={devicePolicyPdfUrl} download={`reglamento-dispositivos-${selectedId}.pdf`}>Descargar PDF</a>}
+                {devicePolicyPdfUrl && <button className="contract-preview-button primary" type="button" onClick={() => window.open(devicePolicyPdfUrl, "_blank", "noopener,noreferrer")}>Imprimir reglamento</button>}
+              </div>
+            </section>}
           </section>
         </div>
       </main>
