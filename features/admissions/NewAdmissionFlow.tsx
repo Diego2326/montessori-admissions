@@ -613,7 +613,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
           <h3>Familia</h3>
           <p>Escribe los apellidos con los que identificarán a la familia.</p>
           <div className="public-pre-fields">
-            <label className="field-label public-pre-field"><span>Familia <b className="public-pre-required" aria-hidden="true"> *</b></span><input value={familyName} onChange={(event) => setFamilyName(event.target.value)} placeholder="Apellido Apellido" required /></label>
+            <label className="field-label public-pre-field"><span>Familia <b className="public-pre-required" aria-hidden="true"> *</b></span><input value={familyName} onChange={(event) => setFamilyName(event.target.value)} placeholder="Apellidos" required /></label>
           </div>
         </section>}
 
