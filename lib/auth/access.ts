@@ -29,19 +29,14 @@ export async function getStaffAccess(token: string, demoMode = false): Promise<S
   const user = await response.json() as ApiUser;
   const permissions = Array.isArray(user.permissions) ? user.permissions : [];
   const isAdmin = user.isAdmin === true || user.role?.toUpperCase() === "ADMIN";
-  const has = (permission: string) => isAdmin || permissions.includes(permission);
-  const admissions = has("ADMISSIONS_MANAGE");
-  const enrollments = has("ENROLLMENTS_MANAGE");
-  const workflow = admissions && enrollments;
   return {
     isAdmin,
-    admissions,
-    workflow,
-    enrollments,
-    finance: has("FINANCE_MANAGE"),
-    // In the current LMS, ADMISSIONS_MANAGE grants sales API access. Accounts with
-    // that scope and without enrollment access are treated as sales-only in this UI.
-    sales: isAdmin || (admissions && !enrollments),
+    // Any signed-in, active staff account can use the Admissions workspace.
+    admissions: true,
+    workflow: true,
+    enrollments: true,
+    finance: true,
+    sales: true,
     userName: user.username?.trim() || user.email,
     permissions,
   };
