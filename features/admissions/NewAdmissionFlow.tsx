@@ -105,13 +105,18 @@ function hydrateParentRepresentative(profile: EnrollmentProfile): EnrollmentProf
   const parentDocument = normalizedProfile[`${prefix}Dpi`];
   const representativeDocument = parentDocument || normalizedProfile.representativeDocument;
   const hasDpiNumber = String(representativeDocument ?? "").replace(/\D/g, "").length === 13;
-  const [firstName = "", ...lastNames] = parentName.split(/\s+/);
+  const hasSeparatedRepresentativeName = Boolean(
+    String(normalizedProfile.representativeFirstName ?? "").trim() ||
+    String(normalizedProfile.representativeLastName ?? "").trim(),
+  );
   return {
     ...normalizedProfile,
     representativeType: prefix === "mother" ? "MOTHER" : "FATHER",
     representativeName: normalizedProfile.representativeName || parentName,
-    representativeFirstName: normalizedProfile.representativeFirstName || firstName,
-    representativeLastName: normalizedProfile.representativeLastName || lastNames.join(" "),
+    // A legacy parentName contains no reliable boundary between given names and surnames.
+    // Keep it intact in the names field and let the user enter surnames explicitly.
+    representativeFirstName: hasSeparatedRepresentativeName ? normalizedProfile.representativeFirstName || "" : parentName,
+    representativeLastName: hasSeparatedRepresentativeName ? normalizedProfile.representativeLastName || "" : "",
     representativeBirthDate: normalizedProfile[`${prefix}BirthDate`] || normalizedProfile.representativeBirthDate,
     representativeAge: calculateAgeValue(String(normalizedProfile[`${prefix}BirthDate`] || normalizedProfile.representativeBirthDate || "")),
     representativeEmail: normalizedProfile[`${prefix}Email`] || normalizedProfile.representativeEmail,
@@ -451,13 +456,21 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
       const prefix = isMother ? "mother" : "father";
       const sameRepresentative = current.representativeType === value;
       const fullName = String(current[`${prefix}Name`] || "").trim();
-      const [representativeFirstName = "", ...representativeLastNames] = fullName.split(/\s+/);
+      const hasSeparatedRepresentativeName = Boolean(
+        String(current.representativeFirstName ?? "").trim() ||
+        String(current.representativeLastName ?? "").trim(),
+      );
       return {
         ...current,
         representativeType: value,
         representativeName: fullName,
-        representativeFirstName,
-        representativeLastName: representativeLastNames.join(" "),
+        // Legacy parent names are full names; do not guess where surnames begin.
+        representativeFirstName: sameRepresentative && hasSeparatedRepresentativeName
+          ? current.representativeFirstName || ""
+          : fullName,
+        representativeLastName: sameRepresentative && hasSeparatedRepresentativeName
+          ? current.representativeLastName || ""
+          : "",
         representativeBirthDate: current[`${prefix}BirthDate`] || (sameRepresentative ? current.representativeBirthDate : ""),
         representativeEmail: current[`${prefix}Email`] || (sameRepresentative ? current.representativeEmail : ""),
         representativeCivilStatus: sameRepresentative ? current.representativeCivilStatus : "",
@@ -597,17 +610,20 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
     if (!entryType || !enrollmentStudents.length || !year) { setError(entryType === "REINSCRIPTION" ? "Selecciona al menos un alumno que continuará en 2027." : "Agrega al menos un alumno y confirma el ciclo 2027."); return; }
     if (entryType === "NEW_INCOME" && !familyName.trim()) { setError("Escribe los apellidos para crear la familia."); return; }
     const parentPrefix = profile.representativeType === "MOTHER" ? "mother" : profile.representativeType === "FATHER" ? "father" : null;
-    if (parentPrefix && !String(profile[`${parentPrefix}Name`] ?? "").trim()) { setError("Completa el nombre del padre o madre seleccionado como representante."); return; }
-    if (!profile.representativeType || (!parentPrefix && !String(profile.representativeFirstName || profile.representativeName || "").trim())) { setError("Selecciona y completa los datos del representante."); return; }
-    const parentRepresentativeName = parentPrefix ? String(profile[`${parentPrefix}Name`] ?? "").trim() : "";
-    const [parentRepresentativeFirstName = "", ...parentRepresentativeLastNames] = parentRepresentativeName.split(/\s+/);
+    const parentRepresentativeFirstName = String(profile.representativeFirstName ?? "").trim();
+    const parentRepresentativeLastName = String(profile.representativeLastName ?? "").trim();
+    if (!profile.representativeType || !parentRepresentativeFirstName || !parentRepresentativeLastName) {
+      setError("Completa los nombres y apellidos del representante.");
+      return;
+    }
+    const parentRepresentativeName = `${parentRepresentativeFirstName} ${parentRepresentativeLastName}`.trim();
     const representativeDocument = profile.representativeDocument || (parentPrefix ? profile[`${parentPrefix}Dpi`] : null) || null;
     const representativeDocumentDigits = String(representativeDocument ?? "").replace(/\D/g, "");
     const effectiveProfile: EnrollmentProfile = parentPrefix ? {
       ...profile,
       representativeName: parentRepresentativeName,
       representativeFirstName: parentRepresentativeFirstName,
-      representativeLastName: parentRepresentativeLastNames.join(" "),
+      representativeLastName: parentRepresentativeLastName,
       representativeBirthDate: profile[`${parentPrefix}BirthDate`] || profile.representativeBirthDate,
       representativeEmail: profile[`${parentPrefix}Email`] || profile.representativeEmail,
       representativeWorkplace: profile[`${parentPrefix}Workplace`] || profile.representativeWorkplace,
