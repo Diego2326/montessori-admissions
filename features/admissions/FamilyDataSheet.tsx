@@ -260,6 +260,7 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
                     {enrollment?.status === "PENDIENTE_FIRMA" && <Link href={`/inscripciones/nueva?${new URLSearchParams({ familyId: String(familyId), studentId: String(child.id), enrollmentId: String(enrollment.id), mode: "reinscripcion" })}`}>Editar datos</Link>}
                     {enrollment && enrollment.status !== "PENDIENTE_FIRMA" && <button type="button" className="is-locked" disabled title={enrollment.status === "ACTIVO" ? "Una inscripción activa no se puede editar." : "Esta inscripción no se puede editar."} aria-label={`Editar datos de ${child.firstName} ${child.lastName}: la inscripción no se puede editar`}>Editar datos</button>}
                     {enrollment && <a className="subtle" href={`/api/operations/enrollments/${enrollment.id}/contract.pdf`} target="_blank" rel="noreferrer">Imprimir contrato</a>}
+                    {enrollment?.profile?.insuranceSelection === "SCHOOL" && <a className="subtle" href={`/api/operations/enrollments/${enrollment.id}/insurance.pdf`} target="_blank" rel="noreferrer">Imprimir seguro escolar</a>}
                     {enrollment?.status === "PENDIENTE_FIRMA" && <button type="button" disabled={busyEnrollmentId === enrollment.id} onClick={() => setSignatureTarget(enrollment)}>{busyEnrollmentId === enrollment.id ? "Guardando…" : "Marcar contrato firmado"}</button>}
                   </div>
                 </article>;
