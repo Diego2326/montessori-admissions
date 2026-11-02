@@ -12,6 +12,40 @@
   color: var(--muted);
   font-size: 12px;
 }
+.insurance-choice-fields {
+  min-width: 0;
+  margin: 18px 0 4px;
+  padding: 15px;
+  border: 1px solid var(--line, #dfe6eb);
+  border-radius: 12px;
+  background: #fbfcfd;
+}
+.insurance-choice-fields legend {
+  padding: 0 5px;
+  color: var(--ink, #17324f);
+  font-size: 13px;
+  font-weight: 700;
+}
+.insurance-choice-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 9px;
+  padding: 11px 12px;
+  border: 1px solid #e1e8eb;
+  border-radius: 9px;
+  color: #526777;
+  background: white;
+  font-size: 12px;
+  cursor: pointer;
+}
+.insurance-choice-option.is-selected {
+  border-color: #3b9a9e;
+  background: #f0f9f8;
+  color: #174c54;
+}
+.insurance-choice-option input { margin: 2px 0 0; accent-color: #21858a; }
+.insurance-other-name { margin-top: 11px; }
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -25,6 +25,20 @@ type FamilyActivity = {
   createdAt: string;
 };
 
+type EnrollmentProgress = {
+  enrollmentId: number;
+  studentId: number;
+  studentName: string;
+  gradeName: string;
+  enrollmentStatus: string;
+  currentStep: string;
+  currentStepLabel: string;
+  paymentStatus: string;
+  insuranceSelection: string | null;
+  otherInsuranceName: string | null;
+  steps: Array<{ code: string; label: string; completed: boolean; completedAt: string | null }>;
+};
+
 function display(value: unknown) {
   if (value == null || String(value).trim() === "") return "Sin registrar";
   return String(value);
@@ -49,15 +63,17 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
   const [busyEnrollmentId, setBusyEnrollmentId] = useState<number | null>(null);
   const [signatureTarget, setSignatureTarget] = useState<Enrollment | null>(null);
   const [activity, setActivity] = useState<FamilyActivity[]>([]);
+  const [progress, setProgress] = useState<EnrollmentProgress[]>([]);
 
   useEffect(() => {
     let active = true;
     async function load() {
       try {
-        const [familyResult, overview, bootstrap] = await Promise.all([
+        const [familyResult, overview, bootstrap, progressResult] = await Promise.all([
           operation<FamilyIntake>(`admission-workflow/families/${familyId}`),
           operation<{ candidates: AdmissionCandidate[] }>("admission-workflow/2027/overview"),
           operation<Bootstrap>("enrollments/bootstrap"),
+          operation<{ students: EnrollmentProgress[] }>(`admission-workflow/families/${familyId}/progress?schoolYear=2027`),
         ]);
         const schoolYear = bootstrap.schoolYears.find((item) => item.year === 2027);
         const nextEnrollments = schoolYear
@@ -67,6 +83,7 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
         setFamily(familyResult);
         setCandidates(overview.candidates);
         setEnrollments(nextEnrollments);
+        setProgress(progressResult.students ?? []);
         try {
           await save(`admission-workflow/families/${familyId}/activity`, { action: "FAMILY_SHEET_VIEWED" });
           const entries = await operation<FamilyActivity[]>(`admission-workflow/families/${familyId}/activity`);
@@ -82,6 +99,19 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
     }
     void load();
     return () => { active = false; };
+  }, [familyId]);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const latest = await operation<{ students: EnrollmentProgress[] }>(`admission-workflow/families/${familyId}/progress?schoolYear=2027`);
+        if (active) setProgress(latest.students ?? []);
+      } catch { /* Preserve the last saved progress if this refresh fails. */ }
+    };
+    const timer = window.setInterval(() => void refresh(), 15000);
+    window.addEventListener("focus", refresh);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener("focus", refresh); };
   }, [familyId]);
 
   const children = useMemo(() => {
@@ -136,6 +166,12 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
 
   const profile = family?.profile ?? {};
   const representativeName = [profile.representativeFirstName, profile.representativeLastName].filter(Boolean).join(" ") || profile.representativeName;
+  const progressGroups = [...progress.reduce((groups, student) => {
+    const current = groups.get(student.currentStep) ?? { label: student.currentStepLabel, students: [] as EnrollmentProgress[] };
+    current.students.push(student);
+    groups.set(student.currentStep, current);
+    return groups;
+  }, new Map<string, { label: string; students: EnrollmentProgress[] }>()).values()];
 
   return (
     <>
@@ -181,6 +217,17 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
                 <article><span className="family-sheet-label">MADRE</span><h3>{display(profile.motherName)}</h3><p>{display(profile.motherPhone)}</p><p>{display(profile.motherEmail)}</p></article>
                 <article><span className="family-sheet-label">PADRE</span><h3>{display(profile.fatherName)}</h3><p>{display(profile.fatherPhone)}</p><p>{display(profile.fatherEmail)}</p></article>
               </div>
+            </section>
+
+            <section className="family-sheet-card family-sheet-progress">
+              <div className="family-sheet-section-heading"><div><span className="family-sheet-label">AVANCE COMPARTIDO</span><h2>Proceso de inscripción 2027</h2></div><span className="family-sheet-live"><i /> Actualizado en vivo</span></div>
+              {progressGroups.length === 0 ? <p className="family-sheet-empty">Todavía no hay inscripciones guardadas para este ciclo.</p> : <div className="family-progress-list">
+                {progressGroups.map((group) => <article className="family-progress-row" key={group.students[0]?.currentStep}>
+                  <span className="family-progress-check">{group.students[0]?.steps.filter((step) => step.completed).length}</span>
+                  <div><strong>{group.label}</strong><p>{group.students.map((student) => student.studentName).join(" · ")}</p><small>{group.students.map((student) => student.gradeName).filter((grade, index, all) => all.indexOf(grade) === index).join(" · ")}</small></div>
+                  <span className="family-progress-payment">{group.students.filter((student) => student.paymentStatus === "PAID").length}/{group.students.length} pagos completos</span>
+                </article>)}
+              </div>}
             </section>
 
             <section className="family-sheet-card family-sheet-children">

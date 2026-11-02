@@ -20,6 +20,8 @@ export function EnrollmentContractPreview({
   const [detailsLoading, setDetailsLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(true);
+  const [insurancePdfUrl, setInsurancePdfUrl] = useState<string | null>(null);
+  const [insurancePdfLoading, setInsurancePdfLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -64,10 +66,45 @@ export function EnrollmentContractPreview({
   }, [selectedId]);
 
   const enrollment = enrollments.find((item) => item.id === selectedId);
+  const insuranceSelection = String(enrollment?.profile?.insuranceSelection ?? "");
+  const otherInsuranceName = String(enrollment?.profile?.otherInsuranceName ?? "");
   const studentName = enrollment
     ? `${enrollment.studentFirstName ?? ""} ${enrollment.studentLastName ?? ""}`.trim()
     : `Contrato ${selectedId}`;
   const returnHref = familyId ? `/inscripciones/familias/${familyId}` : "/";
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+    const abortController = new AbortController();
+    setInsurancePdfUrl(null);
+    if (insuranceSelection !== "SCHOOL") {
+      setInsurancePdfLoading(false);
+      return () => { active = false; abortController.abort(); };
+    }
+    setInsurancePdfLoading(true);
+    void fetch(`/api/operations/enrollments/${selectedId}/insurance.pdf`, { cache: "no-store", signal: abortController.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null) as { error?: string; message?: string } | null;
+          throw new Error(payload?.error || payload?.message || "No se pudo preparar el formulario del seguro.");
+        }
+        const blob = await response.blob();
+        if (blob.type !== "application/pdf") throw new Error("La respuesta no contiene un PDF del seguro.");
+        objectUrl = URL.createObjectURL(blob);
+        if (active) setInsurancePdfUrl(objectUrl);
+        else URL.revokeObjectURL(objectUrl);
+      })
+      .catch((cause) => {
+        if (active && cause instanceof Error && cause.name !== "AbortError") setError(cause.message || "No se pudo preparar el formulario del seguro.");
+      })
+      .finally(() => { if (active) setInsurancePdfLoading(false); });
+    return () => {
+      active = false;
+      abortController.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [selectedId, insuranceSelection]);
 
   return (
     <>
@@ -107,6 +144,19 @@ export function EnrollmentContractPreview({
               {pdfUrl && <a className="contract-preview-button secondary" href={pdfUrl} download={`contrato-${selectedId}.pdf`}>Descargar PDF</a>}
               {pdfUrl && <button className="contract-preview-button primary" type="button" onClick={() => window.open(pdfUrl, "_blank", "noopener,noreferrer")}>Imprimir contrato</button>}
             </div>
+
+            <section className="insurance-preview-section" aria-labelledby="insurance-preview-title">
+              <div className="insurance-preview-heading"><div><p className="family-sheet-label">DOCUMENTO DEL ALUMNO</p><h2 id="insurance-preview-title">Seguro estudiantil</h2></div></div>
+              {insuranceSelection === "SCHOOL" ? <>
+                <p>Se generó el formulario de Seguro Escolar Banrural con los datos de este alumno y su representante.</p>
+                {insurancePdfLoading && <div className="contract-preview-loading" role="status">Preparando el formulario del seguro…</div>}
+                {insurancePdfUrl && <iframe className="contract-preview-frame insurance-preview-frame" title={`Formulario de seguro de ${studentName}`} src={insurancePdfUrl} />}
+                <div className="contract-preview-actions insurance-preview-actions">
+                  {insurancePdfUrl && <a className="contract-preview-button secondary" href={insurancePdfUrl} download={`seguro-escolar-${selectedId}.pdf`}>Descargar formulario</a>}
+                  {insurancePdfUrl && <button className="contract-preview-button primary" type="button" onClick={() => window.open(insurancePdfUrl, "_blank", "noopener,noreferrer")}>Imprimir seguro</button>}
+                </div>
+              </> : insuranceSelection === "OTHER" ? <p className="insurance-external-note">La familia indicó cobertura con <strong>{otherInsuranceName || "otra aseguradora"}</strong>. No se genera formulario de Banrural.</p> : <p className="insurance-external-note">El seguro todavía no está registrado en la inscripción.</p>}
+            </section>
           </section>
         </div>
       </main>

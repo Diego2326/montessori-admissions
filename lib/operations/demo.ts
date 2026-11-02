@@ -114,6 +114,39 @@ export function demoOperation<T>(path: string): T {
     { contractId: 81, contractDate: "2026-01-08", sourceStudentId: 101, studentName: "Sofía Méndez López", sourceRepresentativeId: 15, representativeName: "Andrea López", matchedStudentId: 101, matchStatus: "MATCHED" },
     { contractId: 82, contractDate: "2026-01-08", sourceStudentId: 102, studentName: "Mateo Méndez López", sourceRepresentativeId: 15, representativeName: "Andrea López", matchedStudentId: 102, matchStatus: "MATCHED" },
   ] satisfies LegacyContractAssignment[]) as T;
+  if (/^admission-workflow\/families\/\d+\/progress$/.test(route)) {
+    const familyId = Number(route.split("/")[2]);
+    const schoolYear = Number(query.get("schoolYear")) || 2027;
+    const students = enrollments
+      .filter((item) => item.schoolYear === schoolYear && demoCandidates.some((candidate) => candidate.id === item.studentId && candidate.familyId === familyId))
+      .map((item) => {
+        const hasContract = Boolean(item.profile?.contractNumber) || ["PENDIENTE_FIRMA", "ACTIVO"].includes(item.status);
+        const signed = Boolean(item.profile?.contractSignedAt) || item.status === "ACTIVO";
+        const isActive = item.status === "ACTIVO";
+        const currentStep = !hasContract ? "CONTRACT" : !signed ? "SIGNATURE" : isActive ? "ACTIVE" : "REVIEW";
+        const paymentStatus = isActive ? "PAID" : "PENDING";
+        return {
+          enrollmentId: item.id,
+          studentId: item.studentId,
+          studentName: `${item.studentFirstName} ${item.studentLastName}`.trim(),
+          gradeName: item.gradeName ?? "Grado pendiente",
+          enrollmentStatus: item.status,
+          currentStep,
+          currentStepLabel: ({ CONTRACT: "Contrato por generar", SIGNATURE: "Firma del contrato pendiente", ACTIVE: "Inscripción activa", REVIEW: "Revisión de inscripción" } as Record<string, string>)[currentStep],
+          paymentStatus,
+          insuranceSelection: item.profile?.insuranceSelection ?? null,
+          otherInsuranceName: item.profile?.otherInsuranceName ?? null,
+          steps: [
+            { code: "DATA_SAVED", label: "Datos guardados", completed: true, completedAt: null },
+            { code: "CONTRACT", label: "Contrato generado", completed: hasContract, completedAt: null },
+            { code: "SIGNATURE", label: "Firma registrada", completed: signed, completedAt: null },
+            { code: "PAYMENT", label: "Pago de inscripción", completed: isActive, completedAt: null },
+            { code: "ACTIVE", label: "Inscripción activa", completed: isActive, completedAt: null },
+          ],
+        };
+      });
+    return json({ familyId, schoolYear, students }) as T;
+  }
   if (route.startsWith("admission-workflow/families/")) {
     const idText = route.split("/")[2];
     const result = familyDetail(Number(idText));
