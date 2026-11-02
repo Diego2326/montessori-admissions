@@ -54,6 +54,12 @@ function enrollmentLabel(enrollment?: Enrollment) {
   return { label: "No inscrito", className: "unlinked" };
 }
 
+function selectedRepresentativeEmail(profile: FamilyIntake["profile"]) {
+  const type = String(profile.representativeType ?? "").toUpperCase();
+  const parentEmail = type === "MOTHER" ? profile.motherEmail : type === "FATHER" ? profile.fatherEmail : null;
+  return String(parentEmail || profile.representativeEmail || "").trim();
+}
+
 export function FamilyDataSheet({ familyId }: { familyId: number }) {
   const [family, setFamily] = useState<FamilyIntake | null>(null);
   const [candidates, setCandidates] = useState<AdmissionCandidate[]>([]);
@@ -61,6 +67,11 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyEnrollmentId, setBusyEnrollmentId] = useState<number | null>(null);
+  const [emailBusy, setEmailBusy] = useState<"saving" | "sending" | null>(null);
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [signatureTarget, setSignatureTarget] = useState<Enrollment | null>(null);
   const [activity, setActivity] = useState<FamilyActivity[]>([]);
   const [progress, setProgress] = useState<EnrollmentProgress[]>([]);
@@ -92,6 +103,7 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
           : [];
         if (!active) return;
         setFamily(familyResult);
+        setRecipientEmail(selectedRepresentativeEmail(familyResult.profile));
         setCandidates(overview.candidates);
         setEnrollments(nextEnrollments);
         void progressRequest;
@@ -189,6 +201,77 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
     return groups;
   }, new Map<string, { label: string; students: EnrollmentProgress[] }>()).values()];
 
+  async function saveRecipientEmail(email: string) {
+    if (!family) throw new Error("No se encontró la ficha familiar.");
+    const selectedProfile = {
+      ...family.profile,
+      representativeEmail: email,
+      ...(String(family.profile.representativeType ?? "").toUpperCase() === "MOTHER" ? { motherEmail: email } : {}),
+      ...(String(family.profile.representativeType ?? "").toUpperCase() === "FATHER" ? { fatherEmail: email } : {}),
+    };
+    const updated = await save<FamilyIntake>(`admission-workflow/families/${family.id}`, {
+      name: family.name,
+      profile: selectedProfile,
+    }, "PUT");
+    setFamily(updated);
+    setRecipientEmail(email);
+    return updated;
+  }
+
+  async function persistEmail() {
+    const email = recipientEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError("Escribe un correo electrónico válido.");
+      setEmailMessage("");
+      return;
+    }
+    setEmailBusy("saving");
+    setEmailError("");
+    setEmailMessage("");
+    try {
+      await saveRecipientEmail(email);
+      setEditingEmail(false);
+      setEmailMessage("Correo actualizado.");
+    } catch (cause) {
+      setEmailError(cause instanceof Error ? cause.message : "No se pudo guardar el correo.");
+    } finally {
+      setEmailBusy(null);
+    }
+  }
+
+  async function resendEmail() {
+    const email = recipientEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEditingEmail(true);
+      setEmailError("Escribe un correo electrónico válido antes de reenviar.");
+      setEmailMessage("");
+      return;
+    }
+    setEmailBusy("sending");
+    setEmailError("");
+    setEmailMessage("");
+    try {
+      const savedFamily = await saveRecipientEmail(email);
+      const response = await save<{ sent: boolean }>(`admission-workflow/families/${familyId}/completion-email`, {
+        schoolYear: 2027,
+        recipientEmail: email,
+      });
+      if (!response.sent) throw new Error("No se pudo reenviar el correo.");
+      setFamily(savedFamily);
+      setEditingEmail(false);
+      setEmailMessage(`Correo reenviado a ${email}.`);
+      try {
+        setActivity(await operation<FamilyActivity[]>(`admission-workflow/families/${familyId}/activity`));
+      } catch {
+        // The email can be sent even if the activity log is temporarily unavailable.
+      }
+    } catch (cause) {
+      setEmailError(cause instanceof Error ? cause.message : "No se pudo reenviar el correo.");
+    } finally {
+      setEmailBusy(null);
+    }
+  }
+
   return (
     <>
       <header className="admissions-brand-header">
@@ -223,8 +306,28 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
                 {detail("Parentesco", profile.representativeType)}
                 {detail("Documento", profile.representativeDocument)}
                 {detail("Teléfono del representante", profile.representativeMobilePhone)}
-                {detail("Correo del representante", profile.representativeEmail)}
               </div>
+              <div className="family-sheet-email-tools">
+                <div className="family-sheet-email-value">
+                  <span className="family-sheet-label">CORREO PARA CONTRATO Y SEGURO</span>
+                  {editingEmail
+                    ? <input aria-label="Correo para recibir el contrato y seguro" type="email" autoComplete="email" value={recipientEmail} onChange={(event) => setRecipientEmail(event.target.value)} />
+                    : <strong>{display(selectedRepresentativeEmail(profile))}</strong>}
+                </div>
+                <div className="family-sheet-email-actions">
+                  {editingEmail
+                    ? <>
+                      <button type="button" className="secondary" disabled={emailBusy !== null} onClick={() => { setRecipientEmail(selectedRepresentativeEmail(profile)); setEditingEmail(false); setEmailError(""); }}>Cancelar</button>
+                      <button type="button" className="secondary" disabled={emailBusy !== null} onClick={() => void persistEmail()}>{emailBusy === "saving" ? "Guardando…" : "Guardar correo"}</button>
+                    </>
+                    : <button type="button" className="secondary" disabled={emailBusy !== null} onClick={() => { setRecipientEmail(selectedRepresentativeEmail(profile)); setEditingEmail(true); setEmailError(""); }}>Editar correo</button>}
+                  <button type="button" disabled={emailBusy !== null} onClick={() => void resendEmail()}>
+                    {emailBusy === "sending" ? "Enviando…" : editingEmail ? "Guardar y reenviar correo" : "Reenviar correo"}
+                  </button>
+                </div>
+              </div>
+              {emailError && <p className="family-sheet-error" role="alert">{emailError}</p>}
+              {emailMessage && <p className="family-sheet-email-message" role="status">{emailMessage}</p>}
             </section>
 
             <section className="family-sheet-card">
