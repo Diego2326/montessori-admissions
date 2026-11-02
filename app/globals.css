@@ -1447,6 +1447,34 @@ svg {
 .queue-search {
   width: min(310px, 100%);
 }
+.queue-tools {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+.queue-status-filter {
+  display: grid;
+  min-width: 190px;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.queue-status-filter select {
+  width: 100%;
+  min-height: 49px;
+  padding: 0 32px 0 13px;
+  border: 1px solid #4b536a;
+  border-radius: 14px;
+  outline: 0;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.queue-status-filter select:focus {
+  border-color: var(--primary);
+}
 .large-tabs {
   display: flex;
   gap: 5px;
@@ -1645,6 +1673,14 @@ svg {
   }
   .queue-search {
     width: 100%;
+  }
+  .queue-tools {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+  .queue-status-filter {
+    min-width: 0;
   }
 }
 .demo-mode-banner {

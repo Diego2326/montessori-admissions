@@ -13,11 +13,24 @@ import { LegacyContractsPanel } from "./LegacyContractsPanel";
 import { PreEnrollmentResponsesPanel } from "./PreEnrollmentResponsesPanel";
 
 type Queue = "new" | "returning" | "home" | "families" | "contracts";
+type EnrollmentStatusFilter = "ALL" | "UNENROLLED" | "PENDIENTE_FIRMA" | "PENDIENTE_PAGO" | "ACTIVO" | "INACTIVO" | "RETIRADO";
+
+const enrollmentStatusOptions: { value: EnrollmentStatusFilter; label: string }[] = [
+  { value: "ALL", label: "Todos los estados" },
+  { value: "UNENROLLED", label: "Sin inscripción 2027" },
+  { value: "PENDIENTE_FIRMA", label: "Pendiente de firma" },
+  { value: "PENDIENTE_PAGO", label: "Pendiente de pago" },
+  { value: "ACTIVO", label: "Inscrito" },
+  { value: "INACTIVO", label: "Inactivo" },
+  { value: "RETIRADO", label: "Retirado" },
+];
 
 function enrollmentLabel(status?: string) {
   if (status === "ACTIVO") return "Inscrito";
   if (status === "PENDIENTE_PAGO") return "Pendiente de pago";
   if (status === "PENDIENTE_FIRMA") return "Pendiente de firma";
+  if (status === "INACTIVO") return "Inactivo";
+  if (status === "RETIRADO") return "Retirado";
   return "Sin inscripción 2027";
 }
 
@@ -38,6 +51,7 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
   const [familyDetail, setFamilyDetail] = useState<FamilyIntake | null>(null);
   const [search, setSearch] = useState("");
   const [queue, setQueue] = useState<Queue>("new");
+  const [enrollmentStatusFilter, setEnrollmentStatusFilter] = useState<EnrollmentStatusFilter>("ALL");
   const [error, setError] = useState("");
   const { version, area } = useLiveUpdates();
 
@@ -190,7 +204,13 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
   }
 
   const queueStudents = queue === "new" ? newStudents : returningStudents;
-  const visibleQueueStudents = queueStudents.filter((student) => `${student.firstName} ${student.lastName} ${student.familyName ?? ""} ${student.currentGrade ?? ""} ${student.proposedGrade ?? ""}`.toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es")));
+  const visibleQueueStudents = queueStudents.filter((student) => {
+    const status = enrollmentStatuses.get(student.id);
+    const matchesStatus = enrollmentStatusFilter === "ALL"
+      || (enrollmentStatusFilter === "UNENROLLED" ? !status : status === enrollmentStatusFilter);
+    const searchText = `${student.firstName} ${student.lastName} ${student.familyName ?? ""} ${student.currentGrade ?? ""} ${student.proposedGrade ?? ""}`;
+    return matchesStatus && searchText.toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es"));
+  });
 
   return (
     <WorkspaceShell current={selectedFamily ? "Expediente familiar" : "Inscripciones"} access={access}>
@@ -242,7 +262,10 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
 
           <section className="work-section admissions-inbox">
             <div className="section-heading"><div><span className="eyebrow">BANDEJA DE TRABAJO</span><h2>¿Qué proceso vas a atender?</h2></div>
-              {queue !== "home" && <label className="search-field queue-search"><AppIcon name="search" size={19} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={queue === "contracts" ? "Alumno, representante o contrato" : "Buscar alumno o familia"} /></label>}
+              {queue !== "home" && <div className="queue-tools">
+                {(queue === "new" || queue === "returning") && <label className="queue-status-filter"><span>Estado de inscripción</span><select value={enrollmentStatusFilter} onChange={(event) => setEnrollmentStatusFilter(event.target.value as EnrollmentStatusFilter)}>{enrollmentStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
+                <label className="search-field queue-search"><AppIcon name="search" size={19} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={queue === "contracts" ? "Alumno, representante o contrato" : "Buscar alumno o familia"} /></label>
+              </div>}
             </div>
             <div className="large-tabs admissions-tabs" role="tablist" aria-label="Procesos de inscripción">
               <button role="tab" aria-selected={queue === "new"} onClick={() => { setQueue("new"); setSearch(""); }}>Alumnos nuevos <span>{newStudents.length}</span></button>
@@ -269,7 +292,7 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
                 </article>;
               })}
               {!access.enrollments && <p className="muted">El personal con permiso de Inscripciones puede iniciar el registro y administrar los datos de cada alumno.</p>}
-              {visibleQueueStudents.length === 0 && <div className="empty-state"><h3>No hay alumnos en esta bandeja</h3><p>Registra un alumno nuevo o revisa las respuestas que llegaron desde casa.</p></div>}
+              {visibleQueueStudents.length === 0 && <div className="empty-state"><h3>No hay alumnos en esta bandeja</h3><p>{enrollmentStatusFilter !== "ALL" ? "Prueba con otro estado de inscripción o cambia la búsqueda." : "Registra un alumno nuevo o revisa las respuestas que llegaron desde casa."}</p></div>}
               {unassigned.length > 0 && <div className="unassigned-summary"><strong>{unassigned.length} alumno{unassigned.length === 1 ? "" : "s"} sin familia vinculada</strong><span>Abre cada inscripción y confirma a qué expediente familiar pertenece.</span></div>}
             </div>}
 
