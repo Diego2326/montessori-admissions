@@ -29,6 +29,10 @@ El flujo de referencia es:
 - **Alumno antiguo:** recepción → verificación del alumno y solvencia →
   actualización de datos → reinscripción → firma → pago → libros y uniformes.
 
+En la inscripción de alumnos nuevos, el formulario crea la familia con los
+apellidos indicados. En ambos procesos solo es obligatorio el celular del
+representante; los demás teléfonos son opcionales.
+
 El dashboard refleja estados que ya conoce la API (firma, pago e inscripción)
 y deja el resto del flujo como guía operativa; no registra visitas o revisión de
 documentos como estados nuevos.
