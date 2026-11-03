@@ -770,6 +770,15 @@ body {
 .insurance-preview-frame { border-color: #d7e6e8; }
 .insurance-preview-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .insurance-external-note { padding: 13px 15px; border-radius: 10px; background: #f2f6fa; color: #50697e !important; }
+.contract-preview-bottom-actions {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 8px;
+  border-top: 1px solid #e6ebf3;
+}
+.contract-preview-bottom-actions .contract-preview-button {
+  min-width: 230px;
+}
 .contract-preview-button {
   display: flex;
   min-height: 50px;
@@ -992,6 +1001,9 @@ body {
   }
   .contract-preview-actions {
     grid-template-columns: 1fr;
+  }
+  .contract-preview-bottom-actions .contract-preview-button {
+    width: 100%;
   }
 }
 @media (min-width: 561px) and (max-width: 900px) {

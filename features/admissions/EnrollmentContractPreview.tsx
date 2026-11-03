@@ -205,6 +205,10 @@ export function EnrollmentContractPreview({
                 {devicePolicyPdfUrl && <button className="contract-preview-button primary" type="button" onClick={() => window.open(devicePolicyPdfUrl, "_blank", "noopener,noreferrer")}>Imprimir reglamento</button>}
               </div>
             </section>}
+
+            <div className="contract-preview-bottom-actions">
+              <Link className="contract-preview-button primary" href={returnHref}>Ir a la ficha familiar</Link>
+            </div>
           </section>
         </div>
       </main>
