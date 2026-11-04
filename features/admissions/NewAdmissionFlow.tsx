@@ -15,7 +15,7 @@ import { civilStatusOptions, nationalityOptions, optionsWithExistingValue, repre
 type EntryType = "REINSCRIPTION" | "NEW_INCOME";
 type EmergencyContact = { name: string; phone: string; alternatePhone: string };
 type InsuranceSelection = "SCHOOL" | "OTHER" | "";
-type StudentDraft = { key: string; studentId?: number; studentUuid?: string; historicalIntakeId?: number; firstName: string; lastName: string; currentGrade: string; gradeId: number; birthDate: string; studentDpi: string; phone: string; phoneCountryCode?: string; insuranceSelection: InsuranceSelection; otherInsuranceName: string; imported: boolean; enroll: boolean; alreadyEnrolled?: boolean; newFamilyStudent?: boolean };
+type StudentDraft = { key: string; studentId?: number; studentUuid?: string; historicalIntakeId?: number; firstName: string; lastName: string; currentGrade: string; gradeId: number; birthDate: string; gender: "BOY" | "GIRL" | ""; studentDpi: string; phone: string; phoneCountryCode?: string; insuranceSelection: InsuranceSelection; otherInsuranceName: string; imported: boolean; enroll: boolean; alreadyEnrolled?: boolean; newFamilyStudent?: boolean };
 type HistoricalIntake = { id: number; sourceRowId: number; schoolYear: number; firstName: string; lastName: string; birthDate: string | null; intakeDocumentNumber: string | null; sourceGrade: string | null; motherName: string | null; motherWorkplace: string | null; motherMobile: string | null; motherDpi: string | null; fatherName: string | null; fatherOccupation: string | null; fatherWorkplace: string | null; fatherMobile: string | null; address: string | null; city: string | null; otherContact: string | null; contactMobile: string | null; attendedBy: string | null; matchedStudentId: number | null };
 const publicDocumentTypeOptions = [{ value: "DPI", label: "DPI" }, { value: "PASAPORTE", label: "Pasaporte" }] as const;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -172,7 +172,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([{ name: "", phone: "", alternatePhone: "" }]);
   const [search, setSearch] = useState("");
   const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(initialStudentId);
-  const [draft, setDraft] = useState<StudentDraft>({ key: "student-1", firstName: "", lastName: "", currentGrade: "", gradeId: 0, birthDate: "", studentDpi: "", phone: "", phoneCountryCode: "GT", insuranceSelection: "", otherInsuranceName: "", imported: false, enroll: true });
+  const [draft, setDraft] = useState<StudentDraft>({ key: "student-1", firstName: "", lastName: "", currentGrade: "", gradeId: 0, birthDate: "", gender: "", studentDpi: "", phone: "", phoneCountryCode: "GT", insuranceSelection: "", otherInsuranceName: "", imported: false, enroll: true });
   const [students, setStudents] = useState<StudentDraft[]>([]);
   const [historicalIntakes, setHistoricalIntakes] = useState<HistoricalIntake[]>([]);
   const [historicalSearch, setHistoricalSearch] = useState("");
@@ -250,6 +250,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
           currentGrade: candidate?.currentGrade ?? existing.gradeName ?? "",
           gradeId: existing.gradeId,
           birthDate: String(enrollmentProfile.birthDate ?? candidate?.birthDate ?? ""),
+          gender: enrollmentProfile.gender === "BOY" ? "BOY" : enrollmentProfile.gender === "GIRL" ? "GIRL" : "",
           studentDpi: String(enrollmentProfile.studentDpi ?? ""),
           phone: formatPhone(studentPhone),
           phoneCountryCode: "GT",
@@ -258,7 +259,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
           imported: true,
           enroll: true,
         }]);
-        setDraft({ key: "student-draft", firstName: "", lastName: "", currentGrade: "", gradeId: 0, birthDate: "", studentDpi: "", phone: "", phoneCountryCode: "GT", insuranceSelection: "", otherInsuranceName: "", imported: false, enroll: true });
+        setDraft({ key: "student-draft", firstName: "", lastName: "", currentGrade: "", gradeId: 0, birthDate: "", gender: "", studentDpi: "", phone: "", phoneCountryCode: "GT", insuranceSelection: "", otherInsuranceName: "", imported: false, enroll: true });
         setSelectedCandidateId(existing.studentId);
         setSearch("");
         return;
@@ -379,6 +380,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
         currentGrade,
         gradeId: promotedGrade(currentGrade, setup.gradeLevels) || proposedGradeId,
         birthDate: String(preEnrollmentStudent?.birthDate ?? candidate.birthDate ?? previous?.profile?.birthDate ?? ""),
+        gender: previous?.profile?.gender === "BOY" ? "BOY" : previous?.profile?.gender === "GIRL" ? "GIRL" : "",
         studentDpi: String(previous?.profile?.studentDpi ?? ""),
         phone: formatPhone(String(previous?.profile?.studentPhone ?? "")),
         phoneCountryCode: "GT",
@@ -392,7 +394,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
 
     setStudents(loadedStudents);
     setSelectedCandidateId(selectedCandidate.id);
-    setDraft({ key: "student-draft", firstName: "", lastName: "", currentGrade: "", gradeId: 0, birthDate: "", studentDpi: "", phone: "", phoneCountryCode: "GT", insuranceSelection: "", otherInsuranceName: "", imported: false, enroll: true });
+    setDraft({ key: "student-draft", firstName: "", lastName: "", currentGrade: "", gradeId: 0, birthDate: "", gender: "", studentDpi: "", phone: "", phoneCountryCode: "GT", insuranceSelection: "", otherInsuranceName: "", imported: false, enroll: true });
     setSearch("");
     setHistoricalIntakes([]);
     if (warnings.length) setError(warnings.join(" "));
@@ -507,6 +509,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
       firstName: candidate.firstName.trim(), lastName: candidate.lastName.trim(),
       currentGrade, gradeId: targetGradeId,
       birthDate: String(previous?.profile?.birthDate ?? candidate.birthDate ?? ""),
+      gender: previous?.profile?.gender === "BOY" ? "BOY" : previous?.profile?.gender === "GIRL" ? "GIRL" : "",
       studentDpi: String(previous?.profile?.studentDpi ?? ""),
       phone: formatPhone(String(previous?.profile?.studentPhone ?? "")), phoneCountryCode: "GT", imported: Boolean(previous), enroll: true,
       insuranceSelection: previous?.profile?.insuranceSelection === "SCHOOL" || previous?.profile?.insuranceSelection === "OTHER" ? previous.profile.insuranceSelection : "",
@@ -544,6 +547,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
     const fullFirst = draft.firstName.trim();
     const fullLast = draft.lastName.trim();
     if (!fullFirst || !fullLast || !draft.gradeId) { setError("Completa nombres, apellidos y grado del alumno."); return null; }
+    if (!draft.gender) { setError("Selecciona si el alumno es niño o niña."); return null; }
     if (!draft.insuranceSelection || (draft.insuranceSelection === "OTHER" && !draft.otherInsuranceName.trim())) { setError("Indica el seguro del alumno y, si es de otra aseguradora, escribe su nombre."); return null; }
     if (entryType === "REINSCRIPTION" && !draft.studentId && !(draft.newFamilyStudent && familyId)) { setError("Selecciona un alumno existente o agrega al alumno nuevo a una familia."); return null; }
     if (students.some((student) => student.studentId && student.studentId === draft.studentId)) { setError("Este alumno ya está agregado."); return null; }
@@ -551,7 +555,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
   }
 
   function resetDraftStudent(key: string) {
-    setDraft({ key, firstName: "", lastName: "", currentGrade: "", gradeId: 0, birthDate: "", studentDpi: "", phone: "", phoneCountryCode: "GT", insuranceSelection: "", otherInsuranceName: "", imported: false, enroll: true });
+    setDraft({ key, firstName: "", lastName: "", currentGrade: "", gradeId: 0, birthDate: "", gender: "", studentDpi: "", phone: "", phoneCountryCode: "GT", insuranceSelection: "", otherInsuranceName: "", imported: false, enroll: true });
     setSelectedCandidateId(null); setSearch("");
     setHistoricalIntakes([]);
     setHistoricalSearch("");
@@ -567,7 +571,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
 
   function startNewFamilyStudent() {
     if (!familyId) return;
-    setDraft({ key: `new-family-student-${students.length + 1}`, firstName: "", lastName: "", currentGrade: "", gradeId: 0, birthDate: "", studentDpi: "", phone: "", phoneCountryCode: "GT", insuranceSelection: "", otherInsuranceName: "", imported: false, enroll: true, newFamilyStudent: true });
+    setDraft({ key: `new-family-student-${students.length + 1}`, firstName: "", lastName: "", currentGrade: "", gradeId: 0, birthDate: "", gender: "", studentDpi: "", phone: "", phoneCountryCode: "GT", insuranceSelection: "", otherInsuranceName: "", imported: false, enroll: true, newFamilyStudent: true });
     setSelectedCandidateId(null);
     setSearch("");
     setHistoricalIntakes([]);
@@ -608,6 +612,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
       return;
     }
     if (!entryType || !enrollmentStudents.length || !year) { setError(entryType === "REINSCRIPTION" ? "Selecciona al menos un alumno que continuará en 2027." : "Agrega al menos un alumno y confirma el ciclo 2027."); return; }
+    if (enrollmentStudents.some((student) => !student.gender)) { setError("Selecciona si cada alumno que se inscribirá es niño o niña."); return; }
     if (entryType === "NEW_INCOME" && !familyName.trim()) { setError("Escribe los apellidos para crear la familia."); return; }
     const parentPrefix = profile.representativeType === "MOTHER" ? "mother" : profile.representativeType === "FATHER" ? "father" : null;
     const parentRepresentativeFirstName = String(profile.representativeFirstName ?? "").trim();
@@ -746,6 +751,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
             contractSignedAt: existingProfile.contractSignedAt ?? null,
             familyName: defaultName,
             birthDate: student.birthDate || null,
+            gender: student.gender || null,
             studentDpi: student.studentDpi || null,
             studentPhone: student.phone ? `${studentCountry?.dialCode ?? "+502"} ${formatPhone(student.phone, studentCountry?.dialCode, studentCountry?.phoneDigits)}` : null,
             insuranceSelection: student.insuranceSelection || null,
@@ -765,7 +771,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
           schoolYearId: year.id, gradeId: student.gradeId, section: null,
           rejectExisting: true,
           status: "PENDIENTE_FIRMA",
-          profile: { ...timestampedProfile, contractNumber: null, familyName: defaultName, birthDate: student.birthDate || null, studentDpi: student.studentDpi || null, studentPhone: student.phone ? `${countryCodes.find((item) => item.countryCode === student.phoneCountryCode)?.dialCode ?? "+502"} ${formatPhone(student.phone, countryCodes.find((item) => item.countryCode === student.phoneCountryCode)?.dialCode, countryCodes.find((item) => item.countryCode === student.phoneCountryCode)?.phoneDigits)}` : timestampedProfile.representativeMobilePhone || null, insuranceSelection: student.insuranceSelection, otherInsuranceName: student.insuranceSelection === "OTHER" ? student.otherInsuranceName.trim() : null, currentGrade: student.currentGrade || null },
+          profile: { ...timestampedProfile, contractNumber: null, familyName: defaultName, birthDate: student.birthDate || null, gender: student.gender || null, studentDpi: student.studentDpi || null, studentPhone: student.phone ? `${countryCodes.find((item) => item.countryCode === student.phoneCountryCode)?.dialCode ?? "+502"} ${formatPhone(student.phone, countryCodes.find((item) => item.countryCode === student.phoneCountryCode)?.dialCode, countryCodes.find((item) => item.countryCode === student.phoneCountryCode)?.phoneDigits)}` : timestampedProfile.representativeMobilePhone || null, insuranceSelection: student.insuranceSelection, otherInsuranceName: student.insuranceSelection === "OTHER" ? student.otherInsuranceName.trim() : null, currentGrade: student.currentGrade || null },
         } })),
       });
       if (!saved.enrollments?.length) throw new Error("La inscripción se guardó, pero no se generó el contrato.");
@@ -978,6 +984,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
               <label className="field-label public-pre-field"><span>Nombres <b className="public-pre-required" aria-hidden="true"> *</b></span><input value={student.firstName} onChange={(event) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, firstName: event.target.value } : item))} required={entryType !== "REINSCRIPTION" || student.enroll} /></label>
               <label className="field-label public-pre-field"><span>Apellidos <b className="public-pre-required" aria-hidden="true"> *</b></span><input value={student.lastName} onChange={(event) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, lastName: event.target.value } : item))} required={entryType !== "REINSCRIPTION" || student.enroll} /></label>
               <DatePartsField label="Fecha de nacimiento" value={student.birthDate || null} minYear={1900} maxYear={new Date().getFullYear()} order="day-month-year" required={entryType !== "REINSCRIPTION" || student.enroll} onChange={(value) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, birthDate: value ?? "" } : item))} />
+              <label className="field-label public-pre-field"><span>Género del alumno{(entryType !== "REINSCRIPTION" || student.enroll) && <b className="public-pre-required" aria-hidden="true"> *</b>}</span><select value={student.gender} disabled={entryType === "REINSCRIPTION" && (!student.enroll || student.alreadyEnrolled)} required={entryType !== "REINSCRIPTION" || student.enroll} onChange={(event) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, gender: event.target.value as StudentDraft["gender"] } : item))}><option value="">Seleccione</option><option value="BOY">Niño</option><option value="GIRL">Niña</option></select></label>
               <label className="field-label public-pre-field"><span>Grado para 2027 <b className="public-pre-required" aria-hidden="true"> *</b></span><select value={student.gradeId || ""} onChange={(event) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, gradeId: Number(event.target.value) } : item))} required={entryType !== "REINSCRIPTION" || student.enroll}><option value="">Seleccione</option>{gradeOptions.map((grade) => <option value={grade.id} key={grade.id}>{grade.name}</option>)}</select></label>
             </div>
             {!editingEnrollment && <InsuranceChoiceFields nameKey={student.key} value={student.insuranceSelection} otherName={student.otherInsuranceName} disabled={entryType === "REINSCRIPTION" && (!student.enroll || student.alreadyEnrolled)} onSelection={(value) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, insuranceSelection: value } : item))} onOtherName={(value) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, otherInsuranceName: value } : item))} />}
@@ -989,6 +996,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
               <label className="field-label public-pre-field"><span>Nombres <b className="public-pre-required" aria-hidden="true"> *</b></span><input value={draft.firstName} onChange={(event) => setDraft((current) => ({ ...current, firstName: event.target.value }))} required /></label>
               <label className="field-label public-pre-field"><span>Apellidos <b className="public-pre-required" aria-hidden="true"> *</b></span><input value={draft.lastName} onChange={(event) => setDraft((current) => ({ ...current, lastName: event.target.value }))} required /></label>
               <DatePartsField label="Fecha de nacimiento" value={draft.birthDate || null} minYear={1900} maxYear={new Date().getFullYear()} order="day-month-year" required onChange={(value) => setDraft((current) => ({ ...current, birthDate: value ?? "" }))} />
+              <label className="field-label public-pre-field"><span>Género del alumno <b className="public-pre-required" aria-hidden="true"> *</b></span><select value={draft.gender} onChange={(event) => setDraft((current) => ({ ...current, gender: event.target.value as StudentDraft["gender"] }))} required><option value="">Seleccione</option><option value="BOY">Niño</option><option value="GIRL">Niña</option></select></label>
               <label className="field-label public-pre-field"><span>Grado para 2027 <b className="public-pre-required" aria-hidden="true"> *</b></span><select value={draft.gradeId || ""} onChange={(event) => setDraft((current) => ({ ...current, gradeId: Number(event.target.value) }))} required><option value="">Seleccione</option>{gradeOptions.map((grade) => <option value={grade.id} key={grade.id}>{grade.name}{normalizeGrade(grade.name) === "quinto bachillerato" ? " · último grado" : ""}</option>)}</select></label>
             </div>
             <InsuranceChoiceFields nameKey={draft.key} value={draft.insuranceSelection} otherName={draft.otherInsuranceName} onSelection={(value) => setDraft((current) => ({ ...current, insuranceSelection: value }))} onOtherName={(value) => setDraft((current) => ({ ...current, otherInsuranceName: value }))} />
