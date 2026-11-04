@@ -53,6 +53,7 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
   const [queue, setQueue] = useState<Queue>("new");
   const [enrollmentStatusFilter, setEnrollmentStatusFilter] = useState<EnrollmentStatusFilter>("ALL");
   const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const { version, area } = useLiveUpdates();
 
   const reload = useCallback(async () => {
@@ -87,6 +88,13 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
     }
     setError(problems[0] ?? "");
   }, [access.admissions, access.enrollments]);
+
+  const refreshAdmissions = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try { await reload(); }
+    finally { setRefreshing(false); }
+  }, [refreshing, reload]);
 
   useEffect(() => { const timer = setTimeout(() => void reload(), 0); return () => clearTimeout(timer); }, [reload]);
   useEffect(() => {
@@ -235,7 +243,12 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
               <span className="eyebrow">PANEL DEL PERSONAL · CICLO ESCOLAR 2027</span>
               <h1>Atención de inscripciones</h1>
               <p>Organiza alumnos nuevos y reinscripciones, revisa formularios completados desde casa y continúa cada expediente con la familia.</p>
-              {access.enrollments && <button className="button button-primary" type="button" onClick={() => openRegistration({ mode: "new" })}><AppIcon name="plus" size={19} /> Registrar alumno nuevo</button>}
+              <div className="admissions-workspace-actions">
+                <button className="button button-soft admissions-refresh-button" type="button" onClick={() => void refreshAdmissions()} disabled={refreshing} aria-label="Actualizar inscripciones">
+                  <AppIcon name="refresh" size={18} /> {refreshing ? "Actualizando…" : "Actualizar"}
+                </button>
+                {access.enrollments && <button className="button button-primary" type="button" onClick={() => openRegistration({ mode: "new" })}><AppIcon name="plus" size={19} /> Registrar alumno nuevo</button>}
+              </div>
               {!access.enrollments && <p className="access-hint">Tu cuenta puede revisar expedientes. Para crear inscripciones, solicita el permiso de Inscripciones.</p>}
             </div>
             <div className="hero-art"><div className="art-ring"><AppIcon name="users" size={68} /></div></div>

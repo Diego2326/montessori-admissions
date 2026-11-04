@@ -77,7 +77,6 @@ export function WorkspaceShell({
                 Ciclo escolar <strong>2027</strong>
               </span>
             </div>
-            <SignOutButton />
           </div>
         </aside>
         <div className="workspace-main">
@@ -88,7 +87,7 @@ export function WorkspaceShell({
             </div>
             <div className="topbar-actions">
               <LiveIndicator />
-              <span className="mobile-signout"><SignOutButton /></span>
+              <span className="topbar-signout"><SignOutButton /></span>
             </div>
           </header>
           <main className="main-content">

@@ -1088,3 +1088,5 @@
   .family-link-row .status-pill { margin-right: auto; }
   .unassigned-summary { flex-direction: column; }
 }
+
+.admissions-workspace-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:14px}.admissions-workspace-actions .button{margin-top:0}.admissions-refresh-button{display:inline-flex;align-items:center;gap:7px}.admissions-refresh-button:disabled{opacity:.65;cursor:wait}.admissions-refresh-button:disabled svg{animation:admissions-refresh-spin .9s linear infinite}@keyframes admissions-refresh-spin{to{transform:rotate(360deg)}}@media(max-width:560px){.admissions-workspace-actions{align-items:stretch;flex-direction:column}.admissions-workspace-actions .button{justify-content:center}}
