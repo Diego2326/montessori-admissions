@@ -41,9 +41,13 @@ export function ReceiptView({
         </header>
         <div className="receipt-sheet">
           <div className="receipt-brand">
-            <span>
-              <AppIcon name="spark" size={30} />
-            </span>
+            <img
+              className="receipt-school-logo"
+              src="/logo-colegio.png"
+              alt="Colegio Bilingüe Montessori Zacapa"
+              width={64}
+              height={64}
+            />
             <div>
               <strong>Montessori Zacapa</strong>
               <small>Recibo de caja</small>
