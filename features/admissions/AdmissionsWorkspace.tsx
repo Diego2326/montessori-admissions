@@ -8,11 +8,12 @@ import { operation, save } from "@/lib/operations/client";
 import type { AdmissionCandidate, AdmissionsOverview } from "@/lib/admissions/types";
 import type { Bootstrap, Enrollment, FamilyIntake, FamilySummary, LegacyContractAssignment } from "@/lib/operations/types";
 import type { StaffAccess } from "@/lib/auth/access";
+import { downloadWorkbook } from "@/lib/admissions/xlsx";
 import { FamilyIntakePanel } from "./FamilyIntakePanel";
 import { LegacyContractsPanel } from "./LegacyContractsPanel";
 import { PreEnrollmentResponsesPanel } from "./PreEnrollmentResponsesPanel";
 
-type Queue = "new" | "returning" | "home" | "families" | "contracts";
+type Queue = "new" | "returning" | "home" | "families" | "contracts" | "report";
 type EnrollmentStatusFilter = "ALL" | "UNENROLLED" | "PENDIENTE_FIRMA" | "PENDIENTE_PAGO" | "ACTIVO" | "INACTIVO" | "RETIRADO";
 
 const enrollmentStatusOptions: { value: EnrollmentStatusFilter; label: string }[] = [
@@ -52,6 +53,9 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
   const [search, setSearch] = useState("");
   const [queue, setQueue] = useState<Queue>("new");
   const [enrollmentStatusFilter, setEnrollmentStatusFilter] = useState<EnrollmentStatusFilter>("ALL");
+  const [reportGradeFilter, setReportGradeFilter] = useState("ALL");
+  const [reportTypeFilter, setReportTypeFilter] = useState("ALL");
+  const [reportStatusFilter, setReportStatusFilter] = useState<EnrollmentStatusFilter>("ALL");
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const { version, area } = useLiveUpdates();
@@ -156,6 +160,27 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
     ...families.flatMap((family) => family.activeStudents?.map((student) => student.currentGrade) ?? []),
     ...bootstrap?.gradeLevels.map((grade) => grade.name) ?? [],
   ].filter((grade): grade is string => Boolean(grade?.trim())))].sort((a, b) => a.localeCompare(b, "es"));
+  const reportRows = useMemo(() => allCandidates.filter((candidate) => candidate.status !== "GRADUATED").map((candidate) => {
+    const enrollment = enrollmentByStudent.get(candidate.id);
+    return {
+      candidate,
+      enrollment,
+      type: candidate.historicalContracts > 0 ? "REINSCRIPTION" : "NEW",
+      status: enrollment?.status ?? "UNENROLLED",
+      grade: enrollment?.gradeName || candidate.proposedGrade || candidate.currentGrade || "Grado pendiente",
+    };
+  }), [allCandidates, enrollmentByStudent]);
+  const visibleReportRows = reportRows.filter(({ candidate, type, status, grade }) => {
+    const searchText = `${candidate.firstName} ${candidate.lastName} ${candidate.familyName ?? ""} ${grade} ${candidate.representativeName ?? ""}`;
+    return (reportGradeFilter === "ALL" || grade === reportGradeFilter)
+      && (reportTypeFilter === "ALL" || type === reportTypeFilter)
+      && (reportStatusFilter === "ALL" || status === reportStatusFilter)
+      && searchText.toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es"));
+  });
+  const activeEnrollmentCount = reportRows.filter((row) => row.status === "ACTIVO").length;
+  const activeNewCount = reportRows.filter((row) => row.status === "ACTIVO" && row.type === "NEW").length;
+  const activeReturningCount = reportRows.filter((row) => row.status === "ACTIVO" && row.type === "REINSCRIPTION").length;
+  const noEnrollmentCount = reportRows.filter((row) => row.status === "UNENROLLED").length;
 
   const loadFamily = useCallback(async (id: number) => {
     try {
@@ -220,6 +245,16 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
     return matchesStatus && searchText.toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es"));
   });
 
+  function downloadAdmissionReport() {
+    downloadWorkbook(`seguimiento-inscripciones-2027-${new Date().toISOString().slice(0, 10)}.xlsx`, "Inscripciones 2027", [
+      ["Alumno", "Familia", "Tipo de ingreso", "Grado 2027", "Estado de inscripción", "Representante", "Historial de contratos"],
+      ...visibleReportRows.map(({ candidate, type, status, grade }) => [
+        `${candidate.firstName} ${candidate.lastName}`.trim(), candidate.familyName ?? "", type === "NEW" ? "Nuevo ingreso" : "Reinscripción", grade,
+        enrollmentLabel(status === "UNENROLLED" ? undefined : status), candidate.representativeName ?? "", candidate.historicalContracts,
+      ]),
+    ]);
+  }
+
   return (
     <WorkspaceShell current={selectedFamily ? "Expediente familiar" : "Inscripciones"} access={access}>
       {selectedFamily ? (
@@ -275,7 +310,7 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
 
           <section className="work-section admissions-inbox">
             <div className="section-heading"><div><span className="eyebrow">BANDEJA DE TRABAJO</span><h2>¿Qué proceso vas a atender?</h2></div>
-              {queue !== "home" && <div className="queue-tools">
+              {queue !== "home" && queue !== "report" && <div className="queue-tools">
                 {(queue === "new" || queue === "returning") && <label className="queue-status-filter"><span>Estado de inscripción</span><select value={enrollmentStatusFilter} onChange={(event) => setEnrollmentStatusFilter(event.target.value as EnrollmentStatusFilter)}>{enrollmentStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
                 <label className="search-field queue-search"><AppIcon name="search" size={19} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={queue === "contracts" ? "Alumno, representante o contrato" : "Buscar alumno o familia"} /></label>
               </div>}
@@ -286,7 +321,16 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
               <button role="tab" aria-selected={queue === "home"} onClick={() => setQueue("home")}>Desde casa</button>
               <button role="tab" aria-selected={queue === "families"} onClick={() => { setQueue("families"); setSearch(""); }}>Familias <span>{families.length}</span></button>
               <button role="tab" aria-selected={queue === "contracts"} onClick={() => { setQueue("contracts"); setSearch(""); }}>Contratos <span>{contracts.length}</span></button>
+              {access.isAdmin && <button role="tab" aria-selected={queue === "report"} onClick={() => { setQueue("report"); setSearch(""); }}>Seguimiento <span>{reportRows.length}</span></button>}
             </div>
+
+            {queue === "report" && access.isAdmin && <section className="enrollment-report" aria-label="Seguimiento de inscripciones 2027">
+              <div className="enrollment-report-heading"><div><span className="eyebrow">ADMINISTRACIÓN · CICLO 2027</span><h3>Seguimiento de inscripciones</h3><p>Consulta por grado, tipo de ingreso y avance de inscripción.</p></div><button className="button button-primary" type="button" onClick={downloadAdmissionReport} disabled={visibleReportRows.length === 0}><AppIcon name="download" size={18} /> Descargar Excel</button></div>
+              <div className="enrollment-report-stats"><article><small>Inscritos</small><strong>{activeEnrollmentCount}</strong></article><article><small>Nuevo ingreso inscrito</small><strong>{activeNewCount}</strong></article><article><small>Reinscripción inscrita</small><strong>{activeReturningCount}</strong></article><article><small>Pendiente de firma</small><strong>{reportRows.filter((row) => row.status === "PENDIENTE_FIRMA").length}</strong></article><article><small>Pendiente de pago</small><strong>{reportRows.filter((row) => row.status === "PENDIENTE_PAGO").length}</strong></article><article><small>Sin inscripción</small><strong>{noEnrollmentCount}</strong></article></div>
+              <div className="enrollment-report-filters"><label>Buscar<input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Alumno, familia o representante" /></label><label>Grado<select value={reportGradeFilter} onChange={(event) => setReportGradeFilter(event.target.value)}><option value="ALL">Todos los grados</option>{[...new Set(reportRows.map((row) => row.grade))].sort((a, b) => a.localeCompare(b, "es")).map((grade) => <option key={grade}>{grade}</option>)}</select></label><label>Ingreso<select value={reportTypeFilter} onChange={(event) => setReportTypeFilter(event.target.value)}><option value="ALL">Nuevo y reinscripción</option><option value="NEW">Nuevo ingreso</option><option value="REINSCRIPTION">Reinscripción</option></select></label><label>Estado<select value={reportStatusFilter} onChange={(event) => setReportStatusFilter(event.target.value)}>{enrollmentStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></div>
+              <div className="enrollment-report-table-wrap"><table className="enrollment-report-table"><thead><tr><th>Alumno</th><th>Familia</th><th>Ingreso</th><th>Grado 2027</th><th>Estado</th><th>Representante</th></tr></thead><tbody>{visibleReportRows.map(({ candidate, type, status, grade }) => <tr key={candidate.id}><td><strong>{candidate.firstName} {candidate.lastName}</strong></td><td>{candidate.familyName || "Sin familia vinculada"}</td><td><span className={`enrollment-report-type ${type === "NEW" ? "new" : "returning"}`}>{type === "NEW" ? "Nuevo ingreso" : "Reinscripción"}</span></td><td>{grade}</td><td><span className={`status-pill ${status === "ACTIVO" ? "success" : "waiting"}`}>{enrollmentLabel(status === "UNENROLLED" ? undefined : status)}</span></td><td>{candidate.representativeName || "—"}</td></tr>)}</tbody></table>{visibleReportRows.length === 0 && <div className="empty-state"><h3>No hay resultados para estos filtros</h3><p>Prueba con otro grado, tipo de ingreso o estado.</p></div>}</div>
+              <div className="enrollment-report-footer"><span>{visibleReportRows.length} de {reportRows.length} alumnos</span><span>Los estados corresponden a las inscripciones guardadas en el ciclo 2027.</span></div>
+            </section>}
 
             {queue === "home" && <PreEnrollmentResponsesPanel grades={grades} onOpenFamily={(id) => void openFamily(id)} />}
             {(queue === "new" || queue === "returning") && <div className="admission-queue-list">

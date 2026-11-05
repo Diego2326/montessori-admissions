@@ -31,6 +31,30 @@
 .workflow-responsibilities { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 18px; padding: 12px 15px; border-radius: 12px; background: var(--surface-soft); color: var(--muted); font-size: 11px; }
 .workflow-responsibilities strong { color: var(--text); }
 .admissions-tabs { width: 100%; justify-content: flex-start; }
+.enrollment-report { display: grid; gap: 14px; padding-top: 16px; }
+.enrollment-report-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.enrollment-report-heading h3 { margin: 5px 0; font-size: 20px; }
+.enrollment-report-heading p { margin: 0; color: var(--muted); font-size: 12px; }
+.enrollment-report-heading .button { flex: none; }
+.enrollment-report-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.enrollment-report-stats article { display: grid; gap: 6px; padding: 15px 17px; border: 1px solid var(--border); border-radius: 15px; background: var(--surface); }
+.enrollment-report-stats small { color: var(--muted); font-size: 11px; font-weight: 700; }
+.enrollment-report-stats strong { color: var(--text); font-size: 24px; }
+.enrollment-report-filters { display: grid; grid-template-columns: minmax(210px, 1.6fr) repeat(3, minmax(145px, 1fr)); align-items: end; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+.enrollment-report-filters label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.enrollment-report-filters input,.enrollment-report-filters select { min-width: 0; min-height: 42px; padding: 0 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); color: var(--text); font: inherit; }
+.enrollment-report-table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+.enrollment-report-table { width: 100%; border-collapse: collapse; text-align: left; }
+.enrollment-report-table th { padding: 12px 14px; color: var(--muted); background: var(--surface-raised); font-size: 10px; font-weight: 800; text-transform: uppercase; white-space: nowrap; }
+.enrollment-report-table td { padding: 13px 14px; border-top: 1px solid var(--border); color: var(--text); font-size: 12px; white-space: nowrap; }
+.enrollment-report-table td:first-child { min-width: 190px; }
+.enrollment-report-table td:first-child strong { font-weight: 800; }
+.enrollment-report-type { display: inline-flex; padding: 5px 8px; border-radius: 8px; font-size: 10px; font-weight: 800; }
+.enrollment-report-type.new { color: #ffd2bd; background: #573d3a; }
+.enrollment-report-type.returning { color: #c7d7ff; background: #34415b; }
+.enrollment-report-footer { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 10px; }
+@media(max-width:900px){.enrollment-report-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.enrollment-report-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.enrollment-report-heading{align-items:stretch;flex-direction:column}.enrollment-report-heading .button{justify-content:center}.enrollment-report-filters{grid-template-columns:1fr}.enrollment-report-footer{align-items:start;flex-direction:column}}
 .admission-queue-list { display: grid; gap: 10px; }
 .admission-queue-row { display: grid; grid-template-columns: 50px minmax(180px, 1fr) auto minmax(180px, auto); align-items: center; gap: 14px; padding: 15px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }
 .admission-queue-person { display: grid; gap: 4px; min-width: 0; }

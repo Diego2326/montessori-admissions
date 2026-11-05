@@ -16,7 +16,8 @@ type IconName =
   | "close"
   | "link"
   | "copy"
-  | "refresh";
+  | "refresh"
+  | "download";
 const paths: Record<IconName, React.ReactNode> = {
   spark: (
     <>
@@ -78,6 +79,7 @@ const paths: Record<IconName, React.ReactNode> = {
   link: <path d="M10 13a5 5 0 0 0 7.1 0l3-3A5 5 0 0 0 13 2.9l-1.7 1.7M14 11a5 5 0 0 0-7.1 0l-3 3A5 5 0 0 0 11 21.1l1.7-1.7" />,
   copy: <><rect x="8" y="8" width="13" height="13" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></>,
   refresh: <><path d="M20 7v5h-5" /><path d="M19 12a7 7 0 0 0-12-4L4 11m0 6v-5h5" /><path d="M5 12a7 7 0 0 0 12 4l3-3" /></>,
+  download: <><path d="M12 3v12m0 0 4-4m-4 4-4-4" /><path d="M5 17v4h14v-4" /></>,
 };
 export function AppIcon({
   name,
