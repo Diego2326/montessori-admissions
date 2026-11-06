@@ -217,6 +217,9 @@ export function EnrollmentContractPreview({
               <Link className="contract-preview-button secondary" href={returnHref}>Volver a la ficha</Link>
               {pdfUrl && <a className="contract-preview-button secondary" href={pdfUrl} download={`contrato-${selectedId}.pdf`}>Descargar PDF</a>}
               {pdfUrl && <button className="contract-preview-button primary" type="button" onClick={() => window.open(pdfUrl, "_blank", "noopener,noreferrer")}>Imprimir contrato</button>}
+              <a className="contract-preview-button primary" href={`/api/operations/enrollments/${selectedId}/all-documents.pdf`} target="_blank" rel="noreferrer" aria-label={`Imprimir o descargar todos los documentos de ${studentName}`}>
+                Imprimir / descargar todos
+              </a>
             </div>
 
             <section className="insurance-preview-section" aria-labelledby="insurance-preview-title">
