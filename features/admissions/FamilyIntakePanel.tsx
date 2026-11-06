@@ -7,6 +7,7 @@ import { save } from "@/lib/operations/client";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
 import type { Enrollment, EnrollmentProfile, FamilyIntake } from "@/lib/operations/types";
 import { isDeviceUsePolicyApplicable } from "@/features/admissions/device-use-policy";
+import { isEnglishTimeApplicable } from "@/features/admissions/english-time";
 import { FamilyPreEnrollmentLinks } from "./FamilyPreEnrollmentLinks";
 import {
   civilStatusOptions,
@@ -193,6 +194,7 @@ export function FamilyIntakePanel({ family, students, unassigned, enrollmentStat
               {canManageEnrollment && <button className="button button-soft" type="button" disabled={busy} onClick={() => void openChild(child)}>Ficha de datos</button>}
               {enrollment && <a className="button button-primary" href={`/api/operations/enrollments/${enrollment.id}/contract.pdf`} target="_blank" rel="noreferrer">Imprimir contrato</a>}
               {enrollment && isDeviceUsePolicyApplicable(enrollment.gradeName, enrollment.schoolYear) && <a className="button button-soft" href={`/api/operations/enrollments/${enrollment.id}/device-use-policy.pdf`} target="_blank" rel="noreferrer">Imprimir reglamento de dispositivos</a>}
+              {enrollment && isEnglishTimeApplicable(enrollment.gradeName, enrollment.schoolYear) && <a className="button button-soft" href={`/api/operations/enrollments/${enrollment.id}/english-time-commitment.pdf`} target="_blank" rel="noreferrer">Imprimir carta English Time</a>}
               {canManageEnrollment && enrollment?.status === "PENDIENTE_FIRMA" && <button className="button button-soft" type="button" disabled={busy} onClick={() => void markContractSigned(enrollment)}>Marcar documentos firmados</button>}
             </article>;
           })}

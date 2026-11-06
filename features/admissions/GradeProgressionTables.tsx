@@ -6,6 +6,7 @@ import { operation } from "@/lib/operations/client";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
 import type { Bootstrap, Enrollment, FamilySummary, PreEnrollmentSubmissionPage } from "@/lib/operations/types";
 import { isDeviceUsePolicyApplicable } from "@/features/admissions/device-use-policy";
+import { isEnglishTimeApplicable } from "@/features/admissions/english-time";
 
 const FALLBACK_GRADE_ORDER = [
   "Kinder",
@@ -174,6 +175,7 @@ function GradeTransitionTable({
                       {student.familyId && <a className="grade-row-action secondary" href={`/inscripciones/familias/${student.familyId}`}>Ficha de datos</a>}
                       {enrollment && <a className="grade-row-action secondary" href={`/api/operations/enrollments/${enrollment.id}/contract.pdf`} target="_blank" rel="noreferrer">Imprimir contrato</a>}
                       {enrollment && isDeviceUsePolicyApplicable(enrollment.gradeName, enrollment.schoolYear) && <a className="grade-row-action secondary" href={`/api/operations/enrollments/${enrollment.id}/device-use-policy.pdf`} target="_blank" rel="noreferrer">Imprimir reglamento</a>}
+                      {enrollment && isEnglishTimeApplicable(enrollment.gradeName, enrollment.schoolYear) && <a className="grade-row-action secondary" href={`/api/operations/enrollments/${enrollment.id}/english-time-commitment.pdf`} target="_blank" rel="noreferrer">Imprimir carta English Time</a>}
                     </div>
                   </td>
                 </tr>

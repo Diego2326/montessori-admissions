@@ -8,6 +8,7 @@ import { operation, save } from "@/lib/operations/client";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
 import type { Bootstrap, Enrollment, FamilyIntake } from "@/lib/operations/types";
 import { isDeviceUsePolicyApplicable } from "@/features/admissions/device-use-policy";
+import { isEnglishTimeApplicable } from "@/features/admissions/english-time";
 
 type FamilyChild = {
   id: number;
@@ -357,6 +358,7 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
                 const enrollment = enrollments.find((item) => item.studentId === child.id);
                 const status = enrollmentLabel(enrollment);
                 const requiresDevicePolicy = Boolean(enrollment && isDeviceUsePolicyApplicable(enrollment.gradeName, enrollment.schoolYear));
+                const requiresEnglishTimeLetter = Boolean(enrollment && isEnglishTimeApplicable(enrollment.gradeName, enrollment.schoolYear));
                 return <article className="family-sheet-child" key={child.id}>
                   <div className="family-sheet-child-name"><strong>{child.firstName} {child.lastName}</strong><span>{child.currentGrade || enrollment?.gradeName || "Grado sin registrar"}</span></div>
                   <span className={`pre-enrollment-status ${status.className}`}>{status.label}</span>
@@ -367,6 +369,7 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
                     {enrollment && <a className="subtle" href={`/api/operations/enrollments/${enrollment.id}/contract.pdf`} target="_blank" rel="noreferrer">Imprimir contrato</a>}
                     {enrollment?.profile?.insuranceSelection === "SCHOOL" && <a className="subtle" href={`/api/operations/enrollments/${enrollment.id}/insurance.pdf`} target="_blank" rel="noreferrer">Imprimir seguro escolar</a>}
                     {enrollment && requiresDevicePolicy && <a className="subtle" href={`/api/operations/enrollments/${enrollment.id}/device-use-policy.pdf`} target="_blank" rel="noreferrer">Imprimir reglamento de dispositivos</a>}
+                    {enrollment && requiresEnglishTimeLetter && <a className="subtle" href={`/api/operations/enrollments/${enrollment.id}/english-time-commitment.pdf`} target="_blank" rel="noreferrer">Imprimir carta English Time</a>}
                     {enrollment?.status === "PENDIENTE_FIRMA" && <button type="button" disabled={busyEnrollmentId === enrollment.id} onClick={() => setSignatureTarget(enrollment)}>{busyEnrollmentId === enrollment.id ? "Guardando…" : "Marcar documentos firmados"}</button>}
                   </div>
                 </article>;
