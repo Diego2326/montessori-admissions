@@ -127,6 +127,9 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
   }, [familyId]);
 
   useEffect(() => {
+    // The progress endpoint is optional and is not deployed on every API version.
+    // Stop the background polling after its first unavailable response.
+    if (progressAvailable === false) return;
     let active = true;
     const refresh = async () => {
       try {
@@ -142,7 +145,7 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
     const timer = window.setInterval(() => void refresh(), 15000);
     window.addEventListener("focus", refresh);
     return () => { active = false; window.clearInterval(timer); window.removeEventListener("focus", refresh); };
-  }, [familyId]);
+  }, [familyId, progressAvailable]);
 
   const children = useMemo(() => {
     if (!family) return [];
