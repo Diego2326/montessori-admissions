@@ -125,6 +125,10 @@ export function OrderDetails({ order, onClose, onEdit, onChanged }: Props) {
             </div>
           </div>
           <section className="form-section">
+            <div className="order-metadata">
+              {order.contactPhone && <p><strong>Contacto:</strong> {order.contactPhone}</p>}
+              {order.attendedByName && <p><strong>Atendió:</strong> {order.attendedByName}</p>}
+            </div>
             <div className="section-row">
               <h3>Artículos</h3>
               {!paid && (

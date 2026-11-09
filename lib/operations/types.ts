@@ -9,6 +9,7 @@ export type Student = {
   gradeName: string;
   schoolYearId: number;
   familyName: string | null;
+  representativeMobilePhone?: string | null;
 };
 export type Bootstrap = {
   schoolYears: SchoolYear[];
@@ -161,6 +162,8 @@ export type Order = {
   version: number;
   total: string;
   notes: string | null;
+  contactPhone?: string | null;
+  attendedByName?: string | null;
   createdAt: string;
   items: OrderItem[];
 };

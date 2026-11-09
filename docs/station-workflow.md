@@ -22,7 +22,7 @@ Inscripciones y ventas son operaciones separadas. Inscripciones guarda el expedi
 ## Pantallas de trabajo
 
 - **Buscar / Inscribir**: búsqueda rápida por alumno, familia o código; expedientes recientes; formulario por pasos; revisión final; contrato y firmas según el flujo existente. Al terminar muestra accesos separados a Libros y Uniformes.
-- **Libros**: cola de pedidos nuevos, en preparación, listos y con faltantes. Al abrir un pedido: alumno, grado, paquete sugerido, artículos y cantidades, existencias, notas, preparación y entrega. Acción para crear un pedido independiente para un alumno inscrito.
+- **Libros**: cola de pedidos nuevos, en preparación, listos y con faltantes. Al abrir un pedido: alumno, grado, paquete sugerido, artículos y cantidades, existencias, notas, preparación y entrega. Acción para crear un pedido independiente para un alumno inscrito. El teléfono de contacto se propone desde el celular del representante guardado en la inscripción y el operador puede editarlo antes de guardar.
 - **Uniformes**: cola equivalente; selección libre de prendas y tallas, sin paquete obligatorio. Acción para crear un pedido independiente para un alumno inscrito.
 - **Caja**: cola de cuentas pendientes; desglose por alumno de inscripción, libros y uniformes; selector táctil de hermanos para cobro conjunto o individual; total vigente; método y referencia de pago; confirmación única; recibo, consulta y reimpresión. No contiene configuración financiera.
 - **Pendientes de entrega**: vista filtrable de pedidos pagados con artículos aún no entregados, accesible desde las estaciones correspondientes.
@@ -47,7 +47,7 @@ La anulación de una orden sin pago libera reservas. Una orden pagada requiere u
 
 ## Recibo y futura factura
 
-El primer alcance emite únicamente un recibo interno con número, fecha, familia, alumnos incluidos, renglones atribuidos a cada alumno, total, método y referencia de pago. Se guarda una copia inmutable de los importes y conceptos al cobrar para que la reimpresión no cambie si luego se editan catálogos. La emisión de factura queda preparada mediante un tipo de documento y referencia al pago, sin crear todavía integración fiscal ni mostrar controles de facturación al staff.
+El primer alcance emite únicamente un recibo interno con número, fecha, familia, alumnos incluidos, renglones atribuidos a cada alumno, total, método, referencia de pago, teléfono de contacto y nombre del personal que atendió. En los comprobantes de Libros y Uniformes, la presentación se compacta para conservar el contenido en una página. Se guarda una copia inmutable de los importes y conceptos al cobrar para que la reimpresión no cambie si luego se editan catálogos. La emisión de factura queda preparada mediante un tipo de documento y referencia al pago, sin crear todavía integración fiscal ni mostrar controles de facturación al staff.
 
 ## Uso táctil
 

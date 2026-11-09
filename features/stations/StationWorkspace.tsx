@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { useLiveUpdates } from "@/components/LiveUpdatesProvider";
@@ -32,7 +32,7 @@ export function StationWorkspace({ station, initialStudentUuid, access }: { stat
   const [editingId, setEditingId] = useState<number | null>(null);
   const [composing, setComposing] = useState(false);
   const [composeStudentId, setComposeStudentId] = useState<number | null>(null);
-  const [deepLinkHandled, setDeepLinkHandled] = useState(false);
+  const deepLinkHandled = useRef(false);
   const [error, setError] = useState("");
   const { version, area } = useLiveUpdates();
   const reload = useCallback(async () => {
@@ -45,7 +45,7 @@ export function StationWorkspace({ station, initialStudentUuid, access }: { stat
         operation<Product[]>(`admission-stations/${station}/products`),
         yearId
           ? operation<Student[]>(
-              `admission-stations/students?schoolYearId=${yearId}`,
+              `admission-stations/students?schoolYearId=${yearId}${station === "BOOKS" ? "&includeContactPhone=true" : ""}`,
             )
           : Promise.resolve([]),
       ]);
@@ -75,16 +75,18 @@ export function StationWorkspace({ station, initialStudentUuid, access }: { stat
     return () => clearTimeout(timer);
   }, [version, area, station, reload]);
   useEffect(() => {
-    if (deepLinkHandled || !initialStudentUuid || !students.length) return;
+    if (deepLinkHandled.current || !initialStudentUuid || !students.length) return;
     const student = students.find((item) => item.studentUuid === initialStudentUuid);
-    setDeepLinkHandled(true);
-    if (!student) {
-      setError("Este alumno todavía no aparece en el padrón de la estación. Confirma que la inscripción esté activa e inténtalo de nuevo.");
-      return;
-    }
-    setComposeStudentId(student.id);
-    setComposing(true);
-  }, [deepLinkHandled, initialStudentUuid, students]);
+    deepLinkHandled.current = true;
+    queueMicrotask(() => {
+      if (!student) {
+        setError("Este alumno todavía no aparece en el padrón de la estación. Confirma que la inscripción esté activa e inténtalo de nuevo.");
+        return;
+      }
+      setComposeStudentId(student.id);
+      setComposing(true);
+    });
+  }, [initialStudentUuid, students]);
   const active = orders.filter((order) => order.status !== "VOID");
   const count = {
     new: active.filter(
