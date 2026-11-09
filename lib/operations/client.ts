@@ -1,4 +1,5 @@
 import { demoOperation, demoSave } from "./demo";
+import { OperationHttpError } from "./client-error";
 
 export async function operation<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (process.env.NEXT_PUBLIC_ADMISSIONS_DEMO_MODE === "true") {
@@ -20,7 +21,10 @@ export async function operation<T>(path: string, options: RequestInit = {}): Pro
   }
   if (!response.ok) {
     const body = await response.json().catch(() => null) as { error?: string; message?: string } | null;
-    throw new Error(body?.error || body?.message || (response.status === 403 ? "Sin permiso para esta estación" : `Error ${response.status}`));
+    throw new OperationHttpError(
+      body?.error || body?.message || (response.status === 403 ? "Sin permiso para esta estación" : `Error ${response.status}`),
+      response.status,
+    );
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
