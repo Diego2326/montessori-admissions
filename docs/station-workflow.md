@@ -1,6 +1,6 @@
 # Flujo operativo del mostrador 2027
 
-Estado: flujo acordado y con implementación en las ramas de Admissions y Backend. Pendiente de validación integral, integración y despliegue.
+Estado: flujo acordado e implementado en Admissions y Backend; publicado el 2026-11-09. Pendiente validación integral con sesión real.
 
 Seguimiento vigente (workspace local): [avance y pendientes](../../montessori-backend/docs/estado-admin-inscripciones-cms.md). La presencia de código no certifica los casos de aceptación.
 
@@ -72,7 +72,7 @@ Cambios de inscripción, orden, importe, pago, preparación y entrega deben lleg
 
 En el worktree actual `montessori-backend-admissions`, las migraciones V83/V85 y las pantallas de mostrador implementan los pedidos editables antes del cobro, reservas y faltantes, preparación y entrega parcial, cobro conjunto o separado de hermanos, recibos inmutables y eventos entre instancias. Los productos y ajustes de existencias se configuran con permisos de Admin.
 
-La corrección de importes o productos después del pago requiere todavía un flujo propio de autorización y nuevo comprobante en Caja. Hasta incorporarlo, la API bloquea la edición de una orden pagada. La integración visual de catálogos y paquetes en `montessori-admin` también queda pendiente. El despliegue integrado de este trabajo no se ha verificado. Cualquier referencia previa al estado de autenticación de `gcloud` debe comprobarse de nuevo al desplegar.
+La corrección de importes o productos después del pago requiere todavía un flujo propio de autorización y nuevo comprobante en Caja. Hasta incorporarlo, la API bloquea la edición de una orden pagada. La integración visual de catálogos y paquetes en `montessori-admin` también queda pendiente. El cambio de contacto y atendiente está publicado: API `montessori-lms-api-00115-f54` y Worker versión `cfa08e8a-5b4e-4136-843c-a46bc4a5ca5e`. Las pruebas PDFBox cubren los comprobantes pendientes y pagados en una página; falta el recorrido autenticado de crear pedido, editar contacto, cobrar y reimprimir.
 
 El expediente de inscripción también guarda fecha de solicitud, municipio/ciudad,
 ocupación y lugar de trabajo de madre y padre, otro contacto y quién atendió.
