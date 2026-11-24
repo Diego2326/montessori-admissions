@@ -201,9 +201,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
       : Promise.resolve(null);
     void Promise.all([
       needsCandidates
-        ? operation<{ candidates: AdmissionCandidate[] }>(initialStudentId == null
-          ? "admission-workflow/2027/overview"
-          : `admission-workflow/students/${initialStudentId}/candidate-group`)
+        ? operation<{ candidates: AdmissionCandidate[] }>("admission-workflow/2027/overview")
         : Promise.resolve({ candidates: [] as AdmissionCandidate[] }),
       operation<Bootstrap>("enrollments/bootstrap?summary=true"),
       operation<CountryCallingCode[]>("country-codes"),
