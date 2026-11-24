@@ -18,6 +18,36 @@ type ProgressGroup = {
 type PeriodEvent = { date: string; month: string; event: "Formulario recibido" | "Contrato firmado"; student: string; family: string; grade: string; detail: string };
 type GradeSummary = { grade: string; total: number; active: number; signature: number; payment: number; noEnrollment: number; responses: number; signed: number };
 
+function summarizeProgress(candidates: AdmissionCandidate[], enrollments: Enrollment[]): ProgressGroup[] {
+  const enrollmentByStudent = new Map(enrollments.map((item) => [item.studentId, item]));
+  const students = new Map<number, { type: ProgressGroup["type"]; grade: string; status: string }>();
+  for (const candidate of candidates) {
+    const enrollment = enrollmentByStudent.get(candidate.id);
+    if (candidate.status === "GRADUATED" && !enrollment) continue;
+    students.set(candidate.id, {
+      type: candidate.historicalContracts > 0 ? "REINSCRIPTION" : "NEW",
+      grade: enrollment?.gradeName || candidate.proposedGrade || candidate.currentGrade || "Grado pendiente",
+      status: enrollment?.status || "UNENROLLED",
+    });
+  }
+  for (const enrollment of enrollments) {
+    if (students.has(enrollment.studentId)) continue;
+    students.set(enrollment.studentId, { type: "NEW", grade: enrollment.gradeName || "Grado pendiente", status: enrollment.status });
+  }
+  const groups = new Map<string, ProgressGroup>();
+  for (const student of students.values()) {
+    const key = `${student.type}\u0000${student.grade}`;
+    const row = groups.get(key) ?? { type: student.type, grade: student.grade, total: 0, active: 0, pendingSignature: 0, pendingPayment: 0, unenrolled: 0 };
+    row.total++;
+    if (student.status === "ACTIVO") row.active++;
+    else if (student.status === "PENDIENTE_FIRMA") row.pendingSignature++;
+    else if (student.status === "PENDIENTE_PAGO") row.pendingPayment++;
+    else if (student.status === "UNENROLLED") row.unenrolled++;
+    groups.set(key, row);
+  }
+  return [...groups.values()].sort((a, b) => a.type.localeCompare(b.type) || a.grade.localeCompare(b.grade, "es"));
+}
+
 const PAGE_SIZE = 100;
 const dayValue = (value: string) => value.slice(0, 10);
 const inRange = (value: string, from: string, to: string) => {
@@ -71,14 +101,13 @@ export function EnrollmentStatsDashboard() {
     let active = true;
     async function load() {
       try {
-        const [statistics, nextEnrollments, overview, nextResponses] = await Promise.all([
-          operation<{ groups: ProgressGroup[] }>("admission-workflow/2027/statistics"),
+        const [nextEnrollments, overview, nextResponses] = await Promise.all([
           loadEnrollments(),
           operation<{ candidates: AdmissionCandidate[] }>("admission-workflow/2027/overview"),
           loadResponses(),
         ]);
         if (!active) return;
-        setGroups(statistics.groups ?? []);
+        setGroups(summarizeProgress(overview.candidates ?? [], nextEnrollments));
         setEnrollments(nextEnrollments);
         setCandidates(overview.candidates ?? []);
         setResponses(nextResponses);
