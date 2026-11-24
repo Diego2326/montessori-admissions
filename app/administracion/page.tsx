@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SignOutButton } from "@/components/SignOutButton";
 import { EnrollmentStatsDashboard } from "@/features/admissions/EnrollmentStatsDashboard";
+import { AdminPreEnrollmentLinkGenerator } from "@/features/admissions/AdminPreEnrollmentLinkGenerator";
 import { getStaffAccess } from "@/lib/auth/access";
 import { requireAdmissionsSession } from "@/lib/auth/session";
 import { isDemoMode } from "@/lib/operations/demo";
@@ -28,6 +29,7 @@ export default async function AdmissionsAdministrationPage() {
         </div>
       </header>
       <main className="admissions-home">
+        <AdminPreEnrollmentLinkGenerator />
         <EnrollmentStatsDashboard />
       </main>
     </>

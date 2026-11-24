@@ -173,7 +173,7 @@ async function downloadGradePreEnrollmentPdf(grade: string, rows: GradeBatchLink
   pdf.save(`preinscripcion-2027-${safeGrade}.pdf`);
 }
 
-function GradeBatchPreEnrollmentLinks({
+export function GradeBatchPreEnrollmentLinks({
   candidates,
   enrollments,
   submittedFamilyIds,

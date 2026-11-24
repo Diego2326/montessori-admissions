@@ -15,8 +15,10 @@ type ProgressGroup = {
   pendingPayment: number;
   unenrolled: number;
 };
-type PeriodEvent = { date: string; month: string; event: "Formulario recibido" | "Contrato firmado"; student: string; family: string; grade: string; detail: string };
+type PeriodEvent = { date: string; event: "Formulario recibido" | "Contrato firmado"; student: string; family: string; grade: string; detail: string };
 type GradeSummary = { grade: string; total: number; active: number; signature: number; payment: number; noEnrollment: number; responses: number; signed: number };
+type ActivityGranularity = "week" | "day";
+type ActivityRow = { key: string; label: string; responses: number; signatures: number };
 
 function summarizeProgress(candidates: AdmissionCandidate[], enrollments: Enrollment[]): ProgressGroup[] {
   const enrollmentByStudent = new Map(enrollments.map((item) => [item.studentId, item]));
@@ -54,11 +56,23 @@ const inRange = (value: string, from: string, to: string) => {
   const date = dayValue(value);
   return (!from || date >= from) && (!to || date <= to);
 };
-const monthName = (key: string) => new Intl.DateTimeFormat("es-GT", { month: "short", year: "2-digit" }).format(new Date(`${key}-01T12:00:00`));
 const dateLabel = (value: string) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("es-GT", { dateStyle: "medium" }).format(date);
 };
+const dateFromKey = (key: string) => new Date(`${key}T12:00:00`);
+const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+const addDays = (date: Date, count: number) => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + count);
+  return next;
+};
+const mondayOf = (date: Date) => {
+  const monday = new Date(date);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  return monday;
+};
+const weekLabel = (key: string) => `Sem. ${new Intl.DateTimeFormat("es-GT", { day: "2-digit", month: "short" }).format(dateFromKey(key))}`;
 const statusLabel = (status: string) => ({ ACTIVO: "Inscrito", PENDIENTE_FIRMA: "Pendiente de firma", PENDIENTE_PAGO: "Pendiente de pago", UNENROLLED: "Sin inscripción", INACTIVO: "Inactivo", RETIRADO: "Retirado" } as Record<string, string>)[status] ?? status;
 const typeLabel = (type: string) => type === "REINSCRIPTION" ? "Reinscripción" : "Nuevo ingreso";
 
@@ -94,6 +108,8 @@ export function EnrollmentStatsDashboard() {
   const [responses, setResponses] = useState<PreEnrollmentSubmission[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [activityGranularity, setActivityGranularity] = useState<ActivityGranularity>("week");
+  const [enrollmentPage, setEnrollmentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -145,29 +161,48 @@ export function EnrollmentStatsDashboard() {
   const candidateByStudent = useMemo(() => new Map(candidates.map((item) => [item.id, item])), [candidates]);
   const events = useMemo<PeriodEvent[]>(() => [
     ...periodResponses.map((item) => ({
-      date: item.submittedAt, month: item.submittedAt.slice(0, 7), event: "Formulario recibido" as const,
+      date: item.submittedAt, event: "Formulario recibido" as const,
       student: item.students.filter((student) => student.selected).map((student) => `${student.firstName} ${student.lastName}`.trim()).join(", ") || "Sin alumno seleccionado",
       family: item.familyName, grade: item.students.filter((student) => student.selected).map((student) => student.currentGrade || "Grado pendiente").join(", "),
       detail: item.wantsEnroll ? "Desea continuar" : "No continuará",
     })),
     ...periodSignatures.map((item) => ({
-      date: String(item.profile?.contractSignedAt), month: String(item.profile?.contractSignedAt).slice(0, 7), event: "Contrato firmado" as const,
+      date: String(item.profile?.contractSignedAt), event: "Contrato firmado" as const,
       student: `${item.studentFirstName ?? ""} ${item.studentLastName ?? ""}`.trim(), family: String(item.profile?.familyName ?? ""),
       grade: item.gradeName ?? "Grado pendiente", detail: statusLabel(item.status),
     })),
   ].sort((a, b) => a.date.localeCompare(b.date)), [periodResponses, periodSignatures]);
 
-  const monthly = useMemo(() => {
-    const map = new Map<string, { month: string; responses: number; signatures: number }>();
+  const activityRows = useMemo<ActivityRow[]>(() => {
+    if (!events.length) return [];
+    const map = new Map<string, ActivityRow>();
     for (const event of events) {
-      const row = map.get(event.month) ?? { month: event.month, responses: 0, signatures: 0 };
+      const eventDate = dateFromKey(dayValue(event.date));
+      const key = dateKey(activityGranularity === "week" ? mondayOf(eventDate) : eventDate);
+      const row = map.get(key) ?? { key, label: activityGranularity === "week" ? weekLabel(key) : new Intl.DateTimeFormat("es-GT", { day: "2-digit", month: "short" }).format(eventDate), responses: 0, signatures: 0 };
       if (event.event === "Formulario recibido") row.responses++;
       else row.signatures++;
-      map.set(event.month, row);
+      map.set(key, row);
     }
-    return [...map.values()].sort((a, b) => a.month.localeCompare(b.month));
-  }, [events]);
-  const maxMonthly = Math.max(1, ...monthly.map((row) => Math.max(row.responses, row.signatures)));
+    const start = dateFromKey(dayValue(dateFrom || events[0].date));
+    const end = dateFromKey(dayValue(dateTo || events[events.length - 1].date));
+    let cursor = activityGranularity === "week" ? mondayOf(start) : start;
+    const last = activityGranularity === "week" ? mondayOf(end) : end;
+    const rows: ActivityRow[] = [];
+    while (cursor <= last) {
+      const key = dateKey(cursor);
+      rows.push(map.get(key) ?? {
+        key,
+        label: activityGranularity === "week" ? weekLabel(key) : new Intl.DateTimeFormat("es-GT", { day: "2-digit", month: "short" }).format(cursor),
+        responses: 0,
+        signatures: 0,
+      });
+      cursor = addDays(cursor, activityGranularity === "week" ? 7 : 1);
+    }
+    return rows;
+  }, [events, activityGranularity, dateFrom, dateTo]);
+  const maxActivity = Math.max(1, ...activityRows.map((row) => Math.max(row.responses, row.signatures)));
+  const activityTicks = [...new Set([maxActivity, Math.ceil(maxActivity / 2), 0])];
 
   const gradeRows = useMemo<GradeSummary[]>(() => {
     const map = new Map<string, GradeSummary>();
@@ -198,6 +233,10 @@ export function EnrollmentStatsDashboard() {
     const candidate = candidateByStudent.get(item.studentId);
     return { item, candidate, type: candidate && candidate.historicalContracts > 0 ? "REINSCRIPTION" : "NEW" };
   }).sort((a, b) => `${a.item.studentLastName} ${a.item.studentFirstName}`.localeCompare(`${b.item.studentLastName} ${b.item.studentFirstName}`, "es")), [enrollments, candidateByStudent]);
+  const ENROLLMENTS_PER_PAGE = 10;
+  const enrollmentPageCount = Math.max(1, Math.ceil(enrollmentRows.length / ENROLLMENTS_PER_PAGE));
+  const currentEnrollmentPage = Math.min(enrollmentPage, enrollmentPageCount);
+  const visibleEnrollmentRows = enrollmentRows.slice((currentEnrollmentPage - 1) * ENROLLMENTS_PER_PAGE, currentEnrollmentPage * ENROLLMENTS_PER_PAGE);
 
   function exportWorkbook() {
     const period = `${dateFrom || "Inicio"} — ${dateTo || "Sin límite"}`;
@@ -208,7 +247,9 @@ export function EnrollmentStatsDashboard() {
         ["Indicador", "Resultado"], ["Alumnos en seguimiento", summary.total], ["Inscritos", summary.active], ["Pendientes de firma", summary.pendingSignature],
         ["Pendientes de pago", summary.pendingPayment], ["Sin inscripción", summary.unenrolled], ["Nuevo ingreso", summary.newTotal], ["Reinscripción", summary.returningTotal],
         ["Formularios recibidos en el periodo", periodResponses.length], ["Contratos firmados en el periodo", signedCount],
+        ["Agrupación temporal de actividad", activityGranularity === "week" ? "Por semana" : "Por día"],
       ] },
+      { name: "Actividad temporal", rows: [[activityGranularity === "week" ? "Semana desde" : "Fecha", "Formularios", "Firmas", "Actividad"], ...activityRows.map((row) => [row.key, row.responses, row.signatures, row.responses + row.signatures])] },
       { name: "Por grado", rows: [["Grado", "Alumnos", "Inscritos", "Pendiente firma", "Pendiente pago", "Sin inscripción", "Formularios del periodo", "Firmas del periodo"], ...gradeRows.map((row) => [row.grade, row.total, row.active, row.signature, row.payment, row.noEnrollment, row.responses, row.signed])] },
       { name: "Por tipo", rows: [["Tipo de ingreso", "Total", "Inscritos", "Pendiente firma", "Pendiente pago", "Sin inscripción", "Avance (%)"], ...typeRows.map((row) => [row.label, row.total, row.active, row.signature, row.payment, row.noEnrollment, row.completion])] },
       { name: "Inscripciones", rows: [["Alumno", "Familia", "Tipo de ingreso", "Grado 2027", "Sección", "Estado", "Contrato firmado", "Representante", "ID alumno", "ID inscripción"], ...enrollmentRows.map(({ item, candidate, type }) => [`${item.studentFirstName ?? ""} ${item.studentLastName ?? ""}`.trim(), item.profile?.familyName ?? candidate?.familyName ?? "", typeLabel(type), item.gradeName ?? "Grado pendiente", item.section ?? "", statusLabel(item.status), String(item.profile?.contractSignedAt ?? ""), candidate?.representativeName ?? item.profile?.representativeName ?? "", item.studentId, item.id])] },
@@ -241,14 +282,24 @@ export function EnrollmentStatsDashboard() {
           <article><small>Firmas · periodo</small><strong>{periodSignatures.length}</strong></article>
         </div>
         <section className="admissions-stats-chart-card">
-          <div className="admissions-stats-card-heading"><div><h2>Actividad por mes</h2><p>Comparativo de formularios recibidos y contratos firmados en el periodo.</p></div><div className="admissions-stats-legend"><span><i className="responses"/>Formularios</span><span><i className="signatures"/>Firmas</span></div></div>
-          {monthly.length ? <div className="admissions-stats-month-chart">{monthly.map((row) => <div className="admissions-stats-month" key={row.month}><div className="admissions-stats-bars" title={`${monthName(row.month)}: ${row.responses} formularios · ${row.signatures} firmas`}><i className="responses" style={{ height: `${Math.max(row.responses ? 4 : 0, row.responses / maxMonthly * 100)}%` }}/><i className="signatures" style={{ height: `${Math.max(row.signatures ? 4 : 0, row.signatures / maxMonthly * 100)}%` }}/></div><small>{monthName(row.month)}</small></div>)}</div> : <p className="admissions-stats-empty">No hay formularios ni firmas con fecha dentro de este periodo.</p>}
+          <div className="admissions-stats-card-heading"><div><h2>Actividad por {activityGranularity === "week" ? "semana" : "día"}</h2><p>Formularios recibidos y contratos firmados, con escala y valores por periodo.</p></div><div className="admissions-stats-chart-tools"><div className="admissions-stats-granularity" role="group" aria-label="Agrupar actividad por"><button type="button" aria-pressed={activityGranularity === "week"} onClick={() => setActivityGranularity("week")}>Semana</button><button type="button" aria-pressed={activityGranularity === "day"} onClick={() => setActivityGranularity("day")}>Día</button></div><div className="admissions-stats-legend"><span><i className="responses"/>Formularios</span><span><i className="signatures"/>Firmas</span></div></div></div>
+          {activityRows.length ? <div className="admissions-stats-chart-layout"><div className="admissions-stats-y-axis" aria-hidden="true">{activityTicks.map((tick) => <small key={tick}>{tick}</small>)}</div><div className={`admissions-stats-activity-chart ${activityGranularity === "day" ? "daily" : "weekly"}`}>{activityRows.map((row) => {
+            const responseHeight = row.responses / maxActivity * 100;
+            const signatureHeight = row.signatures / maxActivity * 100;
+            return <div className="admissions-stats-activity-column" key={row.key}>
+              <div className="admissions-stats-bar-pair" title={`${row.label}: ${row.responses} formularios · ${row.signatures} firmas`}>
+                <div className="admissions-stats-bar-column"><small className="responses-value" style={{ bottom: `calc(${responseHeight}% + 3px)` }}>{row.responses}</small><i className="responses" style={{ height: `${responseHeight}%` }}/></div>
+                <div className="admissions-stats-bar-column"><small className="signatures-value" style={{ bottom: `calc(${signatureHeight}% + 3px)` }}>{row.signatures}</small><i className="signatures" style={{ height: `${signatureHeight}%` }}/></div>
+              </div>
+              <small className="admissions-stats-activity-label">{row.label}</small>
+            </div>;
+          })}</div></div> : <p className="admissions-stats-empty">No hay formularios ni firmas con fecha dentro de este periodo.</p>}
         </section>
         <div className="admissions-stats-tables-grid">
           <section className="admissions-stats-table-card"><h2>Avance por tipo de ingreso</h2><div className="admissions-stats-table-scroll"><table><thead><tr><th>Tipo</th><th>Total</th><th>Inscritos</th><th>Pendiente firma</th><th>Pendiente pago</th><th>Sin inscripción</th><th>Avance</th></tr></thead><tbody>{typeRows.map((row) => <tr key={row.label}><th scope="row">{row.label}</th><td>{row.total}</td><td>{row.active}</td><td>{row.signature}</td><td>{row.payment}</td><td>{row.noEnrollment}</td><td>{row.completion}%</td></tr>)}</tbody></table></div></section>
-          <section className="admissions-stats-table-card"><h2>Fechas por mes</h2><div className="admissions-stats-table-scroll"><table><thead><tr><th>Mes</th><th>Formularios</th><th>Firmas</th><th>Actividad</th></tr></thead><tbody>{monthly.map((row) => <tr key={row.month}><th scope="row">{monthName(row.month)}</th><td>{row.responses}</td><td>{row.signatures}</td><td>{row.responses + row.signatures}</td></tr>)}{!monthly.length && <tr><td colSpan={4}>Sin actividad en el periodo.</td></tr>}</tbody></table></div></section>
+          <section className="admissions-stats-table-card"><h2>Actividad por {activityGranularity === "week" ? "semana" : "día"}</h2><div className="admissions-stats-table-scroll"><table><thead><tr><th>{activityGranularity === "week" ? "Semana desde" : "Fecha"}</th><th>Formularios</th><th>Firmas</th><th>Actividad total</th></tr></thead><tbody>{activityRows.map((row) => <tr key={row.key}><th scope="row">{row.label}</th><td>{row.responses}</td><td>{row.signatures}</td><td>{row.responses + row.signatures}</td></tr>)}{!activityRows.length && <tr><td colSpan={4}>Sin actividad en el periodo.</td></tr>}</tbody></table></div></section>
           <section className="admissions-stats-table-card admissions-stats-wide"><h2>Avance por grado</h2><div className="admissions-stats-table-scroll"><table><thead><tr><th>Grado</th><th>Total</th><th>Inscritos</th><th>Pendiente firma</th><th>Pendiente pago</th><th>Sin inscripción</th><th>Formularios</th><th>Firmas</th></tr></thead><tbody>{gradeRows.map((row) => <tr key={row.grade}><th scope="row">{row.grade}</th><td>{row.total}</td><td>{row.active}</td><td>{row.signature}</td><td>{row.payment}</td><td>{row.noEnrollment}</td><td>{row.responses}</td><td>{row.signed}</td></tr>)}</tbody></table></div></section>
-          <section className="admissions-stats-table-card admissions-stats-wide"><h2>Inscripciones registradas</h2><div className="admissions-stats-table-scroll"><table><thead><tr><th>Alumno</th><th>Familia</th><th>Tipo</th><th>Grado</th><th>Estado</th><th>Firma</th></tr></thead><tbody>{enrollmentRows.slice(0, 30).map(({ item, candidate, type }) => <tr key={item.id}><td>{item.studentFirstName} {item.studentLastName}</td><td>{item.profile?.familyName ?? candidate?.familyName ?? "—"}</td><td>{typeLabel(type)}</td><td>{item.gradeName ?? "—"}</td><td>{statusLabel(item.status)}</td><td>{item.profile?.contractSignedAt ? dateLabel(String(item.profile.contractSignedAt)) : "Pendiente"}</td></tr>)}{!enrollmentRows.length && <tr><td colSpan={6}>Sin inscripciones registradas.</td></tr>}</tbody></table></div><p className="admissions-stats-footnote">Vista rápida de hasta 30 inscripciones. El Excel incluye todas las inscripciones del ciclo.</p></section>
+          <section className="admissions-stats-table-card admissions-stats-wide"><h2>Inscripciones registradas</h2><div className="admissions-stats-table-scroll"><table><thead><tr><th>Alumno</th><th>Familia</th><th>Tipo</th><th>Grado</th><th>Estado</th><th>Firma</th></tr></thead><tbody>{visibleEnrollmentRows.map(({ item, candidate, type }) => <tr key={item.id}><td>{item.studentFirstName} {item.studentLastName}</td><td>{item.profile?.familyName ?? candidate?.familyName ?? "—"}</td><td>{typeLabel(type)}</td><td>{item.gradeName ?? "—"}</td><td>{statusLabel(item.status)}</td><td>{item.profile?.contractSignedAt ? dateLabel(String(item.profile.contractSignedAt)) : "Pendiente"}</td></tr>)}{!enrollmentRows.length && <tr><td colSpan={6}>Sin inscripciones registradas.</td></tr>}</tbody></table></div><div className="admissions-stats-pagination"><span>Inscripciones {enrollmentRows.length ? (currentEnrollmentPage - 1) * ENROLLMENTS_PER_PAGE + 1 : 0}–{Math.min(currentEnrollmentPage * ENROLLMENTS_PER_PAGE, enrollmentRows.length)} de {enrollmentRows.length}</span><div><button type="button" disabled={currentEnrollmentPage <= 1} onClick={() => setEnrollmentPage(currentEnrollmentPage - 1)}>Anterior</button><small>Página {currentEnrollmentPage} de {enrollmentPageCount}</small><button type="button" disabled={currentEnrollmentPage >= enrollmentPageCount} onClick={() => setEnrollmentPage(currentEnrollmentPage + 1)}>Siguiente</button></div></div><p className="admissions-stats-footnote">El Excel incluye todas las inscripciones del ciclo.</p></section>
           <section className="admissions-stats-table-card admissions-stats-wide"><h2>Actividad reciente</h2><div className="admissions-stats-table-scroll"><table><thead><tr><th>Fecha</th><th>Evento</th><th>Familia</th><th>Alumno(s)</th><th>Grado</th><th>Detalle</th></tr></thead><tbody>{events.slice().reverse().slice(0, 15).map((event, index) => <tr key={`${event.date}-${event.event}-${index}`}><td>{dateLabel(event.date)}</td><td>{event.event}</td><td>{event.family || "—"}</td><td>{event.student}</td><td>{event.grade || "—"}</td><td>{event.detail}</td></tr>)}{!events.length && <tr><td colSpan={6}>Sin eventos con fecha en el periodo seleccionado.</td></tr>}</tbody></table></div></section>
         </div>
       </>}
