@@ -57,6 +57,19 @@ async function latestPreEnrollmentForFamily(familyId: number) {
   return response.submission;
 }
 
+async function enrollmentSummariesForStudents(studentIds: number[]) {
+  const uniqueIds = [...new Set(studentIds.filter((id) => Number.isInteger(id) && id > 0))];
+  const summaries: Enrollment[] = [];
+  for (let index = 0; index < uniqueIds.length; index += 10) {
+    const batch = uniqueIds.slice(index, index + 10);
+    const studentSummaries = await Promise.all(
+      batch.map((id) => operation<Enrollment[]>(`students/${id}/enrollments?summary=true`)),
+    );
+    summaries.push(...studentSummaries.flat());
+  }
+  return summaries;
+}
+
 function profileValues(profile: EnrollmentProfile) {
   return Object.fromEntries(Object.entries(profile).filter(([, value]) => value !== null && value !== undefined)) as EnrollmentProfile;
 }
@@ -336,7 +349,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
     const [detailResult, submissionResult, historyResult] = await Promise.allSettled([
       operation<FamilyIntake>(`admission-workflow/families/${selectedFamilyId}`),
       latestPreEnrollmentForFamily(selectedFamilyId),
-      operation<Enrollment[]>(`enrollments/student-summaries?studentIds=${members.map(({ id }) => id).join(",")}`),
+      enrollmentSummariesForStudents(members.map(({ id }) => id)),
     ]);
     if (detailResult.status === "fulfilled") familyDetail = detailResult.value;
     else warnings.push("No se pudo cargar la ficha guardada de la familia.");
@@ -746,11 +759,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
         const studentsToCheck = enrollmentStudents.filter((student): student is StudentDraft & { studentId: number } => Boolean(student.studentId));
         if (studentsToCheck.length > 0) {
           const studentIds = [...new Set(studentsToCheck.map((student) => student.studentId))];
-          const enrollmentBatches = await Promise.all(Array.from({ length: Math.ceil(studentIds.length / 100) }, (_, index) => {
-            const batch = studentIds.slice(index * 100, (index + 1) * 100);
-            return operation<Enrollment[]>(`enrollments/student-summaries?studentIds=${batch.join(",")}`);
-          }));
-          const existingEnrollments = enrollmentBatches.flat();
+          const existingEnrollments = await enrollmentSummariesForStudents(studentIds);
           const enrolledStudentIds = new Set(existingEnrollments.filter((item) => item.schoolYear === 2027).map((item) => item.studentId));
           const duplicate = studentsToCheck.find((student) => enrolledStudentIds.has(student.studentId));
           if (duplicate) throw new Error(`${duplicate.firstName} ${duplicate.lastName} ya está inscrito en 2027. Actualiza su inscripción desde la ficha existente.`);
