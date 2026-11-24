@@ -1,4 +1,5 @@
 import { demoOperation, demoSave } from "./demo";
+import { OperationHttpError } from "./client-error";
 
 const READ_CACHE_MS = 8_000;
 const readCache = new Map<string, { expiresAt: number; request: Promise<unknown> }>();
@@ -33,7 +34,10 @@ export async function operation<T>(path: string, options: RequestInit = {}): Pro
     }
     if (!response.ok) {
       const body = await response.json().catch(() => null) as { error?: string; message?: string } | null;
-      throw new Error(body?.error || body?.message || (response.status === 403 ? "Sin permiso para esta estación" : `Error ${response.status}`));
+      throw new OperationHttpError(
+        body?.error || body?.message || (response.status === 403 ? "Sin permiso para esta estación" : `Error ${response.status}`),
+        response.status,
+      );
     }
     if (response.status === 204) return undefined;
     return response.json();

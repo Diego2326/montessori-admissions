@@ -5,6 +5,7 @@ import type { MouseEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { operation, save } from "@/lib/operations/client";
+import { isMissingOperation } from "@/lib/operations/client-error";
 import type { Enrollment, FamilyIntake } from "@/lib/operations/types";
 import { isDeviceUsePolicyApplicable } from "@/features/admissions/device-use-policy";
 import { isEnglishTimeApplicable } from "@/features/admissions/english-time";
@@ -85,6 +86,7 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
   const [activity, setActivity] = useState<FamilyActivity[]>([]);
   const [progress, setProgress] = useState<EnrollmentProgress[]>([]);
   const [progressAvailable, setProgressAvailable] = useState<boolean | null>(null);
+  const [progressRequestFailed, setProgressRequestFailed] = useState(false);
   const { version, area } = useLiveUpdates();
   const lastProgressEventVersion = useRef(version);
 
@@ -108,6 +110,7 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
             const rows = result.students ?? [];
             setProgress(rows);
             setProgressAvailable(true);
+            setProgressRequestFailed(false);
             const studentEnrollments = rows.flatMap((student) => student.enrollment ? [student.enrollment] : []);
             if (studentEnrollments.length !== rows.length) {
               void loadFallbackEnrollments();
@@ -116,10 +119,14 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
             setEnrollments(studentEnrollments);
             setRelatedDataLoaded(true);
           })
-          .catch(() => {
+          .catch((cause: unknown) => {
             if (!active) return;
-            setProgress([]);
-            setProgressAvailable(false);
+            if (isMissingOperation(cause)) {
+              setProgress([]);
+              setProgressAvailable(false);
+            } else {
+              setProgressRequestFailed(true);
+            }
             void loadFallbackEnrollments();
           });
         const familyResult = await operation<FamilyIntake>(`admission-workflow/families/${familyId}`);
@@ -157,13 +164,20 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
           const rows = latest.students ?? [];
           setProgress(rows);
           setProgressAvailable(true);
+          setProgressRequestFailed(false);
           if (rows.every((student) => student.enrollment)) {
             setEnrollments(rows.map((student) => student.enrollment!));
             setRelatedDataLoaded(true);
           }
         }
-      } catch {
-        if (active) setProgressAvailable((current) => current ?? false);
+      } catch (cause: unknown) {
+        if (!active) return;
+        if (isMissingOperation(cause)) {
+          setProgress([]);
+          setProgressAvailable(false);
+        } else {
+          setProgressRequestFailed(true);
+        }
       }
     };
     if (area === "ENROLLMENTS" && version > lastProgressEventVersion.current) {
@@ -396,8 +410,8 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
             </section>
 
             <section className="family-sheet-card family-sheet-progress">
-              <div className="family-sheet-section-heading"><div><span className="family-sheet-label">AVANCE COMPARTIDO</span><h2>Proceso de inscripción 2027</h2></div><span className="family-sheet-live"><i />{progressAvailable === null ? "Consultando…" : progressAvailable ? "Actualizado en vivo" : "API pendiente"}</span></div>
-              {progressAvailable === null ? <p className="family-sheet-empty" role="status">Consultando el avance de inscripción…</p> : !progressAvailable ? <p className="family-sheet-empty">El avance todavía no está disponible. Los alumnos y datos de la familia sí se muestran con normalidad.</p> : progressGroups.length === 0 ? <p className="family-sheet-empty">Todavía no hay inscripciones guardadas para este ciclo.</p> : <div className="family-progress-list">
+              <div className="family-sheet-section-heading"><div><span className="family-sheet-label">AVANCE COMPARTIDO</span><h2>Proceso de inscripción 2027</h2></div><span className="family-sheet-live"><i />{progressAvailable === null ? progressRequestFailed ? "Reintentando…" : "Consultando…" : progressAvailable ? progressRequestFailed ? "Error de actualización" : "Actualizado en vivo" : "API pendiente"}</span></div>
+              {progressAvailable === null ? <p className="family-sheet-empty" role="status">{progressRequestFailed ? "No se pudo consultar el avance. Se volverá a intentar automáticamente." : "Consultando el avance de inscripción…"}</p> : !progressAvailable ? <p className="family-sheet-empty">El avance todavía no está disponible. Los alumnos y datos de la familia sí se muestran con normalidad.</p> : progressGroups.length === 0 ? <p className="family-sheet-empty">Todavía no hay inscripciones guardadas para este ciclo.</p> : <div className="family-progress-list">
                 {progressGroups.map((group) => <article className="family-progress-row" key={group.students[0]?.currentStep}>
                   <span className="family-progress-check">{group.students[0]?.steps.filter((step) => step.completed).length}</span>
                   <div><strong>{group.label}</strong><p>{group.students.map((student) => student.studentName).join(" · ")}</p><small>{group.students.map((student) => student.gradeName).filter((grade, index, all) => all.indexOf(grade) === index).join(" · ")}</small></div>

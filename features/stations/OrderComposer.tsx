@@ -46,10 +46,12 @@ export function OrderComposer({
     ),
   );
   const [notes, setNotes] = useState(order?.notes ?? "");
+  const [contactPhoneOverride, setContactPhoneOverride] = useState<string | null>(order?.contactPhone ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [packageLoaded, setPackageLoaded] = useState(false);
   const student = students.find((item) => item.id === studentId);
+  const contactPhone = contactPhoneOverride ?? student?.representativeMobilePhone ?? "";
   useEffect(() => {
     if (station !== "BOOKS" || order || !student || packageLoaded) return;
     let active = true;
@@ -114,7 +116,7 @@ export function OrderComposer({
       const result = order
         ? await save<Order>(
             `admission-stations/${station}/orders/${order.id}`,
-            { expectedVersion: order.version, items, notes: notes || null },
+            { expectedVersion: order.version, items, notes: notes || null, contactPhone: station === "BOOKS" ? contactPhone.trim() || null : null },
             "PUT",
           )
         : await save<Order>(`admission-stations/${station}/orders`, {
@@ -122,6 +124,7 @@ export function OrderComposer({
             schoolYearId,
             items,
             notes: notes || null,
+            contactPhone: station === "BOOKS" ? contactPhone.trim() || null : null,
           });
       onSaved(result);
     } catch (cause) {
@@ -191,6 +194,7 @@ export function OrderComposer({
                       className={`student-option ${studentId === item.id ? "selected" : ""}`}
                       onClick={() => {
                         setStudentId(item.id);
+                        if (station === "BOOKS") setContactPhoneOverride(null);
                         setPackageLoaded(false);
                         setQuantities({});
                       }}
@@ -209,6 +213,22 @@ export function OrderComposer({
                   ))}
                   {!studentsLoading && visibleStudents.length === 0 && <p className="muted">No hay alumnos que coincidan con la búsqueda.</p>}
                 </div>
+              </section>
+            )}
+            {studentId > 0 && station === "BOOKS" && (
+              <section className="form-section">
+                <label className="field-label">
+                  Teléfono de contacto
+                  <input
+                    type="tel"
+                    maxLength={40}
+                    value={contactPhone}
+                    onChange={(event) => setContactPhoneOverride(event.target.value)}
+                    placeholder="Celular del representante"
+                    autoComplete="tel"
+                  />
+                </label>
+                <p>Se completa con el celular del representante registrado en la inscripción y puedes editarlo.</p>
               </section>
             )}
             {studentId > 0 && (

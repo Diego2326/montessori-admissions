@@ -1,6 +1,6 @@
 # Flujo operativo del mostrador 2027
 
-Estado: flujo acordado y con implementación en las ramas de Admissions y Backend. Pendiente de validación integral, integración y despliegue.
+Estado: flujo acordado e implementado en Admissions y Backend; publicado el 2026-11-09. Pendiente validación integral con sesión real.
 
 Seguimiento vigente (workspace local): [avance y pendientes](../../montessori-backend/docs/estado-admin-inscripciones-cms.md). La presencia de código no certifica los casos de aceptación.
 
@@ -22,7 +22,7 @@ Inscripciones y ventas son operaciones separadas. Inscripciones guarda el expedi
 ## Pantallas de trabajo
 
 - **Buscar / Inscribir**: búsqueda rápida por alumno, familia o código; expedientes recientes; formulario por pasos; revisión final; contrato y firmas según el flujo existente. Al terminar muestra accesos separados a Libros y Uniformes.
-- **Libros**: cola de pedidos nuevos, en preparación, listos y con faltantes. Al abrir un pedido: alumno, grado, paquete sugerido, artículos y cantidades, existencias, notas, preparación y entrega. Acción para crear un pedido independiente para un alumno inscrito.
+- **Libros**: cola de pedidos nuevos, en preparación, listos y con faltantes. Al abrir un pedido: alumno, grado, paquete sugerido, artículos y cantidades, existencias, notas, preparación y entrega. Acción para crear un pedido independiente para un alumno inscrito. El teléfono de contacto se propone desde el celular del representante guardado en la inscripción y el operador puede editarlo antes de guardar.
 - **Uniformes**: cola equivalente; selección libre de prendas y tallas, sin paquete obligatorio. Acción para crear un pedido independiente para un alumno inscrito.
 - **Caja**: cola de cuentas pendientes; desglose por alumno de inscripción, libros y uniformes; selector táctil de hermanos para cobro conjunto o individual; total vigente; método y referencia de pago; confirmación única; recibo, consulta y reimpresión. No contiene configuración financiera.
 - **Pendientes de entrega**: vista filtrable de pedidos pagados con artículos aún no entregados, accesible desde las estaciones correspondientes.
@@ -47,7 +47,7 @@ La anulación de una orden sin pago libera reservas. Una orden pagada requiere u
 
 ## Recibo y futura factura
 
-El primer alcance emite únicamente un recibo interno con número, fecha, familia, alumnos incluidos, renglones atribuidos a cada alumno, total, método y referencia de pago. Se guarda una copia inmutable de los importes y conceptos al cobrar para que la reimpresión no cambie si luego se editan catálogos. La emisión de factura queda preparada mediante un tipo de documento y referencia al pago, sin crear todavía integración fiscal ni mostrar controles de facturación al staff.
+El primer alcance emite únicamente un recibo interno con número, fecha, familia, alumnos incluidos, renglones atribuidos a cada alumno, total, método, referencia de pago, teléfono de contacto y nombre del personal que atendió. En los comprobantes de Libros y Uniformes, la presentación se compacta para conservar el contenido en una página. Se guarda una copia inmutable de los importes y conceptos al cobrar para que la reimpresión no cambie si luego se editan catálogos. La emisión de factura queda preparada mediante un tipo de documento y referencia al pago, sin crear todavía integración fiscal ni mostrar controles de facturación al staff.
 
 ## Uso táctil
 
@@ -72,7 +72,7 @@ Cambios de inscripción, orden, importe, pago, preparación y entrega deben lleg
 
 En el worktree actual `montessori-backend-admissions`, las migraciones V83/V85 y las pantallas de mostrador implementan los pedidos editables antes del cobro, reservas y faltantes, preparación y entrega parcial, cobro conjunto o separado de hermanos, recibos inmutables y eventos entre instancias. Los productos y ajustes de existencias se configuran con permisos de Admin.
 
-La corrección de importes o productos después del pago requiere todavía un flujo propio de autorización y nuevo comprobante en Caja. Hasta incorporarlo, la API bloquea la edición de una orden pagada. La integración visual de catálogos y paquetes en `montessori-admin` también queda pendiente. El despliegue integrado de este trabajo no se ha verificado. Cualquier referencia previa al estado de autenticación de `gcloud` debe comprobarse de nuevo al desplegar.
+La corrección de importes o productos después del pago requiere todavía un flujo propio de autorización y nuevo comprobante en Caja. Hasta incorporarlo, la API bloquea la edición de una orden pagada. La integración visual de catálogos y paquetes en `montessori-admin` también queda pendiente. El cambio de contacto y atendiente está publicado: API `montessori-lms-api-00115-f54` y Worker versión `cfa08e8a-5b4e-4136-843c-a46bc4a5ca5e`. Las pruebas PDFBox cubren los comprobantes pendientes y pagados en una página; falta el recorrido autenticado de crear pedido, editar contacto, cobrar y reimprimir.
 
 El expediente de inscripción también guarda fecha de solicitud, municipio/ciudad,
 ocupación y lugar de trabajo de madre y padre, otro contacto y quién atendió.
