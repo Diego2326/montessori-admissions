@@ -17,6 +17,7 @@ type Props = {
   station: Station;
   products: Product[];
   students: Student[];
+  studentsLoading: boolean;
   schoolYearId: number;
   initialStudentId?: number;
   order?: Order | null;
@@ -27,6 +28,7 @@ export function OrderComposer({
   station,
   products,
   students,
+  studentsLoading,
   schoolYearId,
   initialStudentId,
   order,
@@ -182,7 +184,7 @@ export function OrderComposer({
                   />
                 </label>
                 <div className="student-options">
-                  {visibleStudents.map((item) => (
+                  {studentsLoading ? <p className="muted">Cargando padrón de alumnos…</p> : visibleStudents.map((item) => (
                     <button
                       type="button"
                       key={item.id}
@@ -205,6 +207,7 @@ export function OrderComposer({
                       )}
                     </button>
                   ))}
+                  {!studentsLoading && visibleStudents.length === 0 && <p className="muted">No hay alumnos que coincidan con la búsqueda.</p>}
                 </div>
               </section>
             )}

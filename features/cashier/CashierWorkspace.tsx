@@ -41,19 +41,15 @@ export function CashierWorkspace({ access }: { access: StaffAccess }) {
   const { version, area } = useLiveUpdates();
   const reload = useCallback(async () => {
     try {
-      const years = await operation<SchoolYear[]>("school-years");
+      const [years, nextReceipts, nextCharges] = await Promise.all([
+        operation<SchoolYear[]>("school-years"),
+        operation<Receipt[]>("admission-checkout/receipts"),
+        operation<CheckoutCharge[]>("admission-checkout/charges?schoolYear=2027"),
+      ]);
+      setReceipts(nextReceipts);
       const yearId = years.find((year) => year.year === 2027)?.id ?? 0;
       setSchoolYearId(yearId);
-      const [nextCharges, nextReceipts] = await Promise.all([
-        yearId
-          ? operation<CheckoutCharge[]>(
-              `admission-checkout/charges?schoolYearId=${yearId}`,
-            )
-          : Promise.resolve([]),
-        operation<Receipt[]>("admission-checkout/receipts"),
-      ]);
       setCharges(nextCharges);
-      setReceipts(nextReceipts);
       setError("");
     } catch (cause) {
       setError(

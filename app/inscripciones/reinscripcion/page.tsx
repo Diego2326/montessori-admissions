@@ -20,9 +20,11 @@ export default async function ReEnrollmentPage() {
     candidates = getDemoOverview().candidates;
   } else {
     const token = await requireAdmissionsSession();
-    const access = await getStaffAccess(token);
+    const [access, overview] = await Promise.all([
+      getStaffAccess(token),
+      getAdmissionsOverview(token),
+    ]);
     if (!access.workflow) redirect(firstStaffDestination(access));
-    const overview = await getAdmissionsOverview(token);
     if (overview.connection === "unauthorized") redirect("/login");
     candidates = overview.candidates;
     if (overview.connection === "forbidden") {

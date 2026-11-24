@@ -7,6 +7,7 @@ import { save } from "@/lib/operations/client";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
 import type { Enrollment, EnrollmentProfile, FamilyIntake } from "@/lib/operations/types";
 import { isDeviceUsePolicyApplicable } from "@/features/admissions/device-use-policy";
+import { isEnglishTimeApplicable } from "@/features/admissions/english-time";
 import { FamilyPreEnrollmentLinks } from "./FamilyPreEnrollmentLinks";
 import {
   civilStatusOptions,
@@ -68,7 +69,7 @@ export function FamilyIntakePanel({ family, students, unassigned, enrollmentStat
       <label className="field-label" key={key}>
         {label}
         <input
-          value={profile[key] ?? ""}
+          value={String(profile[key] ?? "")}
           type={key === "representativeAge" ? "number" : key.includes("Email") ? "email" : key.includes("Phone") ? "tel" : "text"}
           onChange={(event) => update(key, event.target.value)}
         />
@@ -191,9 +192,16 @@ export function FamilyIntakePanel({ family, students, unassigned, enrollmentStat
                 {enrollmentStatuses.get(child.id) === "ACTIVO" ? "Inscrito" : enrollmentStatuses.get(child.id) === "PENDIENTE_FIRMA" ? "Por firmar" : "No inscrito"}
               </span>
               {canManageEnrollment && <button className="button button-soft" type="button" disabled={busy} onClick={() => void openChild(child)}>Ficha de datos</button>}
-              {enrollment && <a className="button button-primary" href={`/api/operations/enrollments/${enrollment.id}/contract.pdf`} target="_blank" rel="noreferrer">Imprimir contrato</a>}
-              {enrollment && isDeviceUsePolicyApplicable(enrollment.gradeName, enrollment.schoolYear) && <a className="button button-soft" href={`/api/operations/enrollments/${enrollment.id}/device-use-policy.pdf`} target="_blank" rel="noreferrer">Imprimir reglamento de dispositivos</a>}
-              {canManageEnrollment && enrollment?.status === "PENDIENTE_FIRMA" && <button className="button button-soft" type="button" disabled={busy} onClick={() => void markContractSigned(enrollment)}>Marcar documentos firmados</button>}
+              {enrollment && <details className="family-intake-downloads">
+                <summary className="button button-soft">Descargas e impresiones</summary>
+                <div className="family-intake-downloads-menu">
+                  <a href={`/api/operations/enrollments/${enrollment.id}/contract.pdf`} target="_blank" rel="noreferrer">Imprimir contrato</a>
+                  {enrollment.profile?.insuranceSelection === "SCHOOL" && <a href={`/api/operations/enrollments/${enrollment.id}/insurance.pdf`} target="_blank" rel="noreferrer">Imprimir seguro escolar</a>}
+                  {isDeviceUsePolicyApplicable(enrollment.gradeName, enrollment.schoolYear) && <a href={`/api/operations/enrollments/${enrollment.id}/device-use-policy.pdf`} target="_blank" rel="noreferrer">Imprimir reglamento de dispositivos</a>}
+                  {isEnglishTimeApplicable(enrollment.gradeName, enrollment.schoolYear) && <a href={`/api/operations/enrollments/${enrollment.id}/english-time-commitment.pdf`} target="_blank" rel="noreferrer">Imprimir carta English Time</a>}
+                </div>
+              </details>}
+              {canManageEnrollment && enrollment && !enrollment.profile?.contractSignedAt && <button className="button button-soft" type="button" disabled={busy} onClick={() => void markContractSigned(enrollment)}>Marcar documentos firmados</button>}
             </article>;
           })}
           {students.length === 0 && <p className="muted">Agrega el primer alumno de esta familia.</p>}

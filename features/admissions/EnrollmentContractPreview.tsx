@@ -6,6 +6,7 @@ import Link from "next/link";
 import { operation } from "@/lib/operations/client";
 import type { Enrollment } from "@/lib/operations/types";
 import { isDeviceUsePolicyApplicable } from "@/features/admissions/device-use-policy";
+import { isEnglishTimeApplicable } from "@/features/admissions/english-time";
 
 export function EnrollmentContractPreview({
   enrollmentIds,
@@ -25,9 +26,12 @@ export function EnrollmentContractPreview({
   const [insurancePdfLoading, setInsurancePdfLoading] = useState(false);
   const [devicePolicyPdfUrl, setDevicePolicyPdfUrl] = useState<string | null>(null);
   const [devicePolicyPdfLoading, setDevicePolicyPdfLoading] = useState(false);
+  const [englishTimePdfUrl, setEnglishTimePdfUrl] = useState<string | null>(null);
+  const [englishTimePdfLoading, setEnglishTimePdfLoading] = useState(false);
   const [error, setError] = useState("");
   const enrollment = enrollments.find((item) => item.id === selectedId);
   const requiresDevicePolicy = isDeviceUsePolicyApplicable(enrollment?.gradeName, enrollment?.schoolYear);
+  const requiresEnglishTimeLetter = isEnglishTimeApplicable(enrollment?.gradeName, enrollment?.schoolYear);
 
   useEffect(() => {
     let active = true;
@@ -143,6 +147,39 @@ export function EnrollmentContractPreview({
     };
   }, [selectedId, requiresDevicePolicy]);
 
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+    const abortController = new AbortController();
+    setEnglishTimePdfUrl(null);
+    if (!requiresEnglishTimeLetter) {
+      setEnglishTimePdfLoading(false);
+      return () => { active = false; abortController.abort(); };
+    }
+    setEnglishTimePdfLoading(true);
+    void fetch(`/api/operations/enrollments/${selectedId}/english-time-commitment.pdf`, { cache: "no-store", signal: abortController.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null) as { error?: string; message?: string } | null;
+          throw new Error(payload?.error || payload?.message || "No se pudo preparar la carta English Time.");
+        }
+        const blob = await response.blob();
+        if (blob.type !== "application/pdf") throw new Error("La respuesta no contiene la carta English Time en PDF.");
+        objectUrl = URL.createObjectURL(blob);
+        if (active) setEnglishTimePdfUrl(objectUrl);
+        else URL.revokeObjectURL(objectUrl);
+      })
+      .catch((cause) => {
+        if (active && cause instanceof Error && cause.name !== "AbortError") setError(cause.message || "No se pudo preparar la carta English Time.");
+      })
+      .finally(() => { if (active) setEnglishTimePdfLoading(false); });
+    return () => {
+      active = false;
+      abortController.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [selectedId, requiresEnglishTimeLetter]);
+
   return (
     <>
       <header className="admissions-brand-header">
@@ -203,6 +240,17 @@ export function EnrollmentContractPreview({
               <div className="contract-preview-actions insurance-preview-actions">
                 {devicePolicyPdfUrl && <a className="contract-preview-button secondary" href={devicePolicyPdfUrl} download={`reglamento-dispositivos-${selectedId}.pdf`}>Descargar PDF</a>}
                 {devicePolicyPdfUrl && <button className="contract-preview-button primary" type="button" onClick={() => window.open(devicePolicyPdfUrl, "_blank", "noopener,noreferrer")}>Imprimir reglamento</button>}
+              </div>
+            </section>}
+
+            {requiresEnglishTimeLetter && <section className="insurance-preview-section" aria-labelledby="english-time-preview-title">
+              <div className="insurance-preview-heading"><div><p className="family-sheet-label">DOCUMENTO PARA FIRMA</p><h2 id="english-time-preview-title">Carta de compromiso English Time</h2></div></div>
+              <p>La carta se completó con los datos de inscripción del alumno y su representante para el ciclo 2027.</p>
+              {englishTimePdfLoading && <div className="contract-preview-loading" role="status">Preparando la carta English Time…</div>}
+              {englishTimePdfUrl && <iframe className="contract-preview-frame insurance-preview-frame" title={`Carta English Time para ${studentName}`} src={englishTimePdfUrl} />}
+              <div className="contract-preview-actions insurance-preview-actions">
+                {englishTimePdfUrl && <a className="contract-preview-button secondary" href={englishTimePdfUrl} download={`compromiso-english-time-${selectedId}.pdf`}>Descargar PDF</a>}
+                {englishTimePdfUrl && <button className="contract-preview-button primary" type="button" onClick={() => window.open(englishTimePdfUrl, "_blank", "noopener,noreferrer")}>Imprimir carta</button>}
               </div>
             </section>}
 

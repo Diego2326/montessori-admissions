@@ -1,19 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { operation, save } from "@/lib/operations/client";
-import type { AdmissionCandidate } from "@/lib/admissions/types";
-import type { Bootstrap, Enrollment, FamilyIntake } from "@/lib/operations/types";
+import type { Enrollment, FamilyIntake } from "@/lib/operations/types";
 import { isDeviceUsePolicyApplicable } from "@/features/admissions/device-use-policy";
+import { isEnglishTimeApplicable } from "@/features/admissions/english-time";
+import { useLiveUpdates } from "@/components/LiveUpdatesProvider";
 
 type FamilyChild = {
   id: number;
   firstName: string;
   lastName: string;
   currentGrade: string | null;
+  birthDate?: string | null;
 };
 
 type FamilyActivity = {
@@ -29,6 +31,7 @@ type FamilyActivity = {
 type EnrollmentProgress = {
   enrollmentId: number;
   studentId: number;
+  enrollment?: Enrollment;
   studentName: string;
   gradeName: string;
   enrollmentStatus: string;
@@ -49,6 +52,11 @@ function detail(label: string, value: unknown) {
   return <div className="family-sheet-detail" key={label}><span>{label}</span><strong>{display(value)}</strong></div>;
 }
 
+function savedDetail(label: string, value: unknown) {
+  if (value == null || String(value).trim() === "") return null;
+  return detail(label, value);
+}
+
 function enrollmentLabel(enrollment?: Enrollment) {
   if (enrollment?.status === "ACTIVO") return { label: "Inscrito", className: "complete" };
   if (enrollment?.status === "PENDIENTE_FIRMA") return { label: "Por firmar", className: "pending" };
@@ -63,9 +71,9 @@ function selectedRepresentativeEmail(profile: FamilyIntake["profile"]) {
 
 export function FamilyDataSheet({ familyId }: { familyId: number }) {
   const [family, setFamily] = useState<FamilyIntake | null>(null);
-  const [candidates, setCandidates] = useState<AdmissionCandidate[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [relatedDataLoaded, setRelatedDataLoaded] = useState(false);
   const [error, setError] = useState("");
   const [busyEnrollmentId, setBusyEnrollmentId] = useState<number | null>(null);
   const [emailBusy, setEmailBusy] = useState<"saving" | "sending" | null>(null);
@@ -77,44 +85,56 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
   const [activity, setActivity] = useState<FamilyActivity[]>([]);
   const [progress, setProgress] = useState<EnrollmentProgress[]>([]);
   const [progressAvailable, setProgressAvailable] = useState<boolean | null>(null);
+  const { version, area } = useLiveUpdates();
+  const lastProgressEventVersion = useRef(version);
 
   useEffect(() => {
     let active = true;
     async function load() {
+      const loadFallbackEnrollments = async () => {
+        try {
+          const rows = await operation<Enrollment[]>("enrollments?schoolYear=2027&summary=true");
+          if (active) setEnrollments(rows ?? []);
+        } catch {
+          if (active) setEnrollments([]);
+        } finally {
+          if (active) setRelatedDataLoaded(true);
+        }
+      };
       try {
         const progressRequest = operation<{ students: EnrollmentProgress[] }>(`admission-workflow/families/${familyId}/progress?schoolYear=2027`)
           .then((result) => {
             if (!active) return;
-            setProgress(result.students ?? []);
+            const rows = result.students ?? [];
+            setProgress(rows);
             setProgressAvailable(true);
+            const studentEnrollments = rows.flatMap((student) => student.enrollment ? [student.enrollment] : []);
+            if (studentEnrollments.length !== rows.length) {
+              void loadFallbackEnrollments();
+              return;
+            }
+            setEnrollments(studentEnrollments);
+            setRelatedDataLoaded(true);
           })
           .catch(() => {
             if (!active) return;
             setProgress([]);
             setProgressAvailable(false);
+            void loadFallbackEnrollments();
           });
-        const [familyResult, overview, bootstrap] = await Promise.all([
-          operation<FamilyIntake>(`admission-workflow/families/${familyId}`),
-          operation<{ candidates: AdmissionCandidate[] }>("admission-workflow/2027/overview"),
-          operation<Bootstrap>("enrollments/bootstrap"),
-        ]);
-        const schoolYear = bootstrap.schoolYears.find((item) => item.year === 2027);
-        const nextEnrollments = schoolYear
-          ? await operation<Enrollment[]>(`enrollments?schoolYearId=${schoolYear.id}`)
-          : [];
+        const familyResult = await operation<FamilyIntake>(`admission-workflow/families/${familyId}`);
         if (!active) return;
         setFamily(familyResult);
         setRecipientEmail(selectedRepresentativeEmail(familyResult.profile));
-        setCandidates(overview.candidates);
-        setEnrollments(nextEnrollments);
+        setLoading(false);
         void progressRequest;
-        try {
+        void (async () => { try {
           await save(`admission-workflow/families/${familyId}/activity`, { action: "FAMILY_SHEET_VIEWED" });
           const entries = await operation<FamilyActivity[]>(`admission-workflow/families/${familyId}/activity`);
           if (active) setActivity(entries);
         } catch {
           // Keep the family record available if the audit service is temporarily unavailable.
-        }
+        } })();
       } catch (cause) {
         if (active) setError(cause instanceof Error ? cause.message : "No se pudo cargar la ficha familiar.");
       } finally {
@@ -126,22 +146,34 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
   }, [familyId]);
 
   useEffect(() => {
+    // This endpoint is not available in every deployed API version yet. Once a
+    // 404 marks progress as unavailable, stop polling it.
+    if (progressAvailable === false) return;
     let active = true;
     const refresh = async () => {
       try {
         const latest = await operation<{ students: EnrollmentProgress[] }>(`admission-workflow/families/${familyId}/progress?schoolYear=2027`);
         if (active) {
-          setProgress(latest.students ?? []);
+          const rows = latest.students ?? [];
+          setProgress(rows);
           setProgressAvailable(true);
+          if (rows.every((student) => student.enrollment)) {
+            setEnrollments(rows.map((student) => student.enrollment!));
+            setRelatedDataLoaded(true);
+          }
         }
       } catch {
         if (active) setProgressAvailable((current) => current ?? false);
       }
     };
-    const timer = window.setInterval(() => void refresh(), 15000);
+    if (area === "ENROLLMENTS" && version > lastProgressEventVersion.current) {
+      lastProgressEventVersion.current = version;
+      void refresh();
+    }
+    const timer = window.setInterval(() => void refresh(), 60000);
     window.addEventListener("focus", refresh);
     return () => { active = false; window.clearInterval(timer); window.removeEventListener("focus", refresh); };
-  }, [familyId]);
+  }, [familyId, progressAvailable, version, area]);
 
   const children = useMemo(() => {
     if (!family) return [];
@@ -153,19 +185,11 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
         firstName: student.firstName,
         lastName: student.lastName,
         currentGrade: student.currentGrade,
-      });
-    }
-    for (const candidate of candidates) {
-      if (candidate.familyId !== family.id || rows.has(candidate.id)) continue;
-      rows.set(candidate.id, {
-        id: candidate.id,
-        firstName: candidate.firstName,
-        lastName: candidate.lastName,
-        currentGrade: candidate.currentGrade,
+        birthDate: family.studentBirthDates?.[String(student.studentId)] ?? null,
       });
     }
     return [...rows.values()].sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, "es"));
-  }, [candidates, family]);
+  }, [family]);
 
   async function markContractSigned(enrollment: Enrollment) {
     setBusyEnrollmentId(enrollment.id);
@@ -201,6 +225,11 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
     groups.set(student.currentStep, current);
     return groups;
   }, new Map<string, { label: string; students: EnrollmentProgress[] }>()).values()];
+  const emergencyContacts = Array.isArray(profile.emergencyContacts)
+    ? profile.emergencyContacts as Array<{ name?: string | null; phone?: string | null; alternatePhone?: string | null }>
+    : profile.emergencyContactName || profile.emergencyContactPhone || profile.emergencyPhone
+      ? [{ name: String(profile.emergencyContactName ?? ""), phone: String(profile.emergencyContactPhone ?? ""), alternatePhone: String(profile.emergencyPhone ?? "") }]
+      : [];
 
   async function saveRecipientEmail(email: string) {
     if (!family) throw new Error("No se encontró la ficha familiar.");
@@ -305,7 +334,17 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
                 {detail("Municipio", profile.municipality || profile.city)}
                 {detail("Representante", representativeName)}
                 {detail("Parentesco", profile.representativeType)}
+                {detail("Tipo de documento", profile.representativeDocumentType)}
                 {detail("Documento", profile.representativeDocument)}
+                {detail("Edad", profile.representativeAge)}
+                {detail("Fecha de nacimiento", profile.representativeBirthDate)}
+                {detail("Estado civil", profile.representativeCivilStatus)}
+                {detail("Nacionalidad", profile.representativeNationality)}
+                {detail("Profesión u oficio", profile.representativeOccupation)}
+                {detail("Lugar de trabajo", profile.representativeWorkplace)}
+                {detail("Residencia del representante", profile.representativeResidence)}
+                {detail("Teléfono de casa", profile.representativeHomePhone)}
+                {detail("Teléfono de oficina", profile.representativeOfficePhone)}
                 {detail("Teléfono del representante", profile.representativeMobilePhone)}
               </div>
               <div className="family-sheet-email-tools">
@@ -334,8 +373,25 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
             <section className="family-sheet-card">
               <div className="family-sheet-section-heading"><div><span className="family-sheet-label">CONTACTOS</span><h2>Madre y padre</h2></div></div>
               <div className="family-sheet-parent-grid">
-                <article><span className="family-sheet-label">MADRE</span><h3>{display(profile.motherName)}</h3><p>{display(profile.motherPhone)}</p><p>{display(profile.motherEmail)}</p></article>
-                <article><span className="family-sheet-label">PADRE</span><h3>{display(profile.fatherName)}</h3><p>{display(profile.fatherPhone)}</p><p>{display(profile.fatherEmail)}</p></article>
+                <article><span className="family-sheet-label">MADRE</span><h3>{display(profile.motherName)}</h3><div className="family-sheet-detail-grid">
+                  {detail("Fecha de nacimiento", profile.motherBirthDate)}{detail("DPI", profile.motherDpi)}{detail("Celular", profile.motherPhone)}{detail("Teléfono de casa", profile.motherHomePhone)}{detail("Teléfono de oficina", profile.motherOfficePhone)}{detail("Correo", profile.motherEmail)}{detail("Ocupación", profile.motherOccupation)}{detail("Lugar de trabajo", profile.motherWorkplace)}
+                </div></article>
+                <article><span className="family-sheet-label">PADRE</span><h3>{display(profile.fatherName)}</h3><div className="family-sheet-detail-grid">
+                  {detail("Fecha de nacimiento", profile.fatherBirthDate)}{detail("DPI", profile.fatherDpi)}{detail("Celular", profile.fatherPhone)}{detail("Teléfono de casa", profile.fatherHomePhone)}{detail("Teléfono de oficina", profile.fatherOfficePhone)}{detail("Correo", profile.fatherEmail)}{detail("Ocupación", profile.fatherOccupation)}{detail("Lugar de trabajo", profile.fatherWorkplace)}
+                </div></article>
+              </div>
+            </section>
+
+            <section className="family-sheet-card">
+              <div className="family-sheet-section-heading"><div><span className="family-sheet-label">CONTACTOS Y PREFERENCIAS</span><h2>Emergencia y comunicaciones</h2></div></div>
+              {emergencyContacts.length > 0 ? <div className="family-sheet-parent-grid">{emergencyContacts.map((contact, index) => <article key={`emergency-${index}`}>
+                <span className="family-sheet-label">CONTACTO DE EMERGENCIA {emergencyContacts.length > 1 ? index + 1 : ""}</span>
+                <div className="family-sheet-detail-grid">{detail("Nombre", contact.name)}{detail("Teléfono", contact.phone)}{detail("Teléfono alterno", contact.alternatePhone)}</div>
+              </article>)}</div> : <p className="family-sheet-empty">No hay contactos de emergencia registrados.</p>}
+              <div className="family-sheet-detail-grid family-sheet-preferences">
+                {detail("Otro contacto", profile.otherContact)}
+                {detail("Autorizó comunicaciones por correo", profile.emailMarketingConsent === true ? "Sí" : profile.emailMarketingConsent === false ? "No" : null)}
+                {detail("Fecha de autorización", profile.emailMarketingConsentAt)}
               </div>
             </section>
 
@@ -352,22 +408,61 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
 
             <section className="family-sheet-card family-sheet-children">
               <div className="family-sheet-section-heading"><div><span className="family-sheet-label">ALUMNOS</span><h2>Inscripciones de la familia</h2></div><span>{children.length} alumno{children.length === 1 ? "" : "s"}</span></div>
-              {children.length === 0 && <p className="family-sheet-empty">No hay alumnos vinculados a esta familia.</p>}
+              {children.length === 0 && <p className="family-sheet-empty">{relatedDataLoaded ? "No hay alumnos vinculados a esta familia." : "Buscando todos los alumnos vinculados…"}</p>}
               {children.map((child) => {
                 const enrollment = enrollments.find((item) => item.studentId === child.id);
-                const status = enrollmentLabel(enrollment);
+                const status = !relatedDataLoaded && !enrollment ? { label: "Consultando…", className: "pending" } : enrollmentLabel(enrollment);
                 const requiresDevicePolicy = Boolean(enrollment && isDeviceUsePolicyApplicable(enrollment.gradeName, enrollment.schoolYear));
+                const requiresEnglishTimeLetter = Boolean(enrollment && isEnglishTimeApplicable(enrollment.gradeName, enrollment.schoolYear));
+                const studentProfile = enrollment?.profile;
+                const gender = studentProfile?.gender === "BOY" ? "Masculino" : studentProfile?.gender === "GIRL" ? "Femenino" : studentProfile?.gender;
+                const insurance = studentProfile?.insuranceSelection === "SCHOOL"
+                  ? "Seguro escolar"
+                  : studentProfile?.insuranceSelection === "OTHER"
+                    ? `Otro: ${studentProfile.otherInsuranceName || "aseguradora sin especificar"}`
+                    : studentProfile?.insuranceSelection;
                 return <article className="family-sheet-child" key={child.id}>
                   <div className="family-sheet-child-name"><strong>{child.firstName} {child.lastName}</strong><span>{child.currentGrade || enrollment?.gradeName || "Grado sin registrar"}</span></div>
                   <span className={`pre-enrollment-status ${status.className}`}>{status.label}</span>
                   <div className="family-sheet-child-actions">
-                    {!enrollment && <Link href={`/inscripciones/reinscripcion/alumno/${child.id}`} onClick={(event) => void startReenrollment(event, child)}>Iniciar reinscripción</Link>}
-                    {enrollment?.status === "PENDIENTE_FIRMA" && <Link href={`/inscripciones/nueva?${new URLSearchParams({ familyId: String(familyId), studentId: String(child.id), enrollmentId: String(enrollment.id), mode: "reinscripcion" })}`}>Editar datos</Link>}
-                    {enrollment && enrollment.status !== "PENDIENTE_FIRMA" && <button type="button" className="is-locked" disabled title={enrollment.status === "ACTIVO" ? "Una inscripción activa no se puede editar." : "Esta inscripción no se puede editar."} aria-label={`Editar datos de ${child.firstName} ${child.lastName}: la inscripción no se puede editar`}>Editar datos</button>}
-                    {enrollment && <a className="subtle" href={`/api/operations/enrollments/${enrollment.id}/contract.pdf`} target="_blank" rel="noreferrer">Imprimir contrato</a>}
-                    {enrollment?.profile?.insuranceSelection === "SCHOOL" && <a className="subtle" href={`/api/operations/enrollments/${enrollment.id}/insurance.pdf`} target="_blank" rel="noreferrer">Imprimir seguro escolar</a>}
-                    {enrollment && requiresDevicePolicy && <a className="subtle" href={`/api/operations/enrollments/${enrollment.id}/device-use-policy.pdf`} target="_blank" rel="noreferrer">Imprimir reglamento de dispositivos</a>}
-                    {enrollment?.status === "PENDIENTE_FIRMA" && <button type="button" disabled={busyEnrollmentId === enrollment.id} onClick={() => setSignatureTarget(enrollment)}>{busyEnrollmentId === enrollment.id ? "Guardando…" : "Marcar documentos firmados"}</button>}
+                    {relatedDataLoaded && !enrollment && <Link href={`/inscripciones/reinscripcion/alumno/${child.id}`} onClick={(event) => void startReenrollment(event, child)}>Iniciar reinscripción</Link>}
+                    {enrollment && !enrollment.profile?.contractSignedAt && <Link href={`/inscripciones/nueva?${new URLSearchParams({ familyId: String(familyId), studentId: String(child.id), enrollmentId: String(enrollment.id), mode: "reinscripcion" })}`}>Editar datos</Link>}
+                    {enrollment?.profile?.contractSignedAt && <button type="button" className="is-locked" disabled title="El contrato ya fue firmado y la inscripción no se puede editar." aria-label={`Editar datos de ${child.firstName} ${child.lastName}: la inscripción ya fue firmada`}>Editar datos</button>}
+                    {enrollment && <details className="family-sheet-downloads">
+                      <summary>Descargas e impresiones</summary>
+                      <div className="family-sheet-downloads-menu">
+                        <a href={`/api/operations/enrollments/${enrollment.id}/contract.pdf`} target="_blank" rel="noreferrer">Imprimir contrato</a>
+                        {enrollment.profile?.insuranceSelection === "SCHOOL" && <a href={`/api/operations/enrollments/${enrollment.id}/insurance.pdf`} target="_blank" rel="noreferrer">Imprimir seguro escolar</a>}
+                        {requiresDevicePolicy && <a href={`/api/operations/enrollments/${enrollment.id}/device-use-policy.pdf`} target="_blank" rel="noreferrer">Imprimir reglamento de dispositivos</a>}
+                        {requiresEnglishTimeLetter && <a href={`/api/operations/enrollments/${enrollment.id}/english-time-commitment.pdf`} target="_blank" rel="noreferrer">Imprimir carta English Time</a>}
+                      </div>
+                    </details>}
+                    {enrollment && !enrollment.profile?.contractSignedAt && <button type="button" disabled={busyEnrollmentId === enrollment.id} onClick={() => setSignatureTarget(enrollment)}>{busyEnrollmentId === enrollment.id ? "Guardando…" : "Marcar documentos firmados"}</button>}
+                  </div>
+                  <div className="family-sheet-student-details">
+                    <span className="family-sheet-label">DATOS DEL ALUMNO{enrollment?.schoolYear ? ` · CICLO ${enrollment.schoolYear}` : ""}</span>
+                    <div className="family-sheet-detail-grid">
+                      {savedDetail("Fecha de nacimiento", studentProfile?.birthDate || child.birthDate)}
+                      {savedDetail("Género", gender)}
+                      {savedDetail("DPI", studentProfile?.studentDpi)}
+                      {savedDetail("Teléfono", studentProfile?.studentPhone)}
+                      {savedDetail("Dirección", studentProfile?.address)}
+                      {savedDetail("Municipio", studentProfile?.city)}
+                      {savedDetail("Seguro", insurance)}
+                      {savedDetail("Contacto de emergencia", studentProfile?.emergencyContactName)}
+                      {savedDetail("Teléfono de emergencia", studentProfile?.emergencyContactPhone || studentProfile?.emergencyPhone)}
+                      {savedDetail("Atendido por", studentProfile?.attendedBy)}
+                      {savedDetail("Notas", studentProfile?.otherNotes)}
+                      {savedDetail("Número de contrato", studentProfile?.contractNumber)}
+                      {savedDetail("Contrato firmado", studentProfile?.contractSignedAt)}
+                      {savedDetail("Nivel educativo", studentProfile?.educationLevel)}
+                      {savedDetail("Carrera", studentProfile?.career)}
+                      {savedDetail("Plan de horario", studentProfile?.schedulePlan)}
+                      {savedDetail("Plan de estudios", studentProfile?.studyPlan)}
+                      {savedDetail("Cuota de inscripción", studentProfile?.enrollmentFee)}
+                      {savedDetail("Cuota mensual", studentProfile?.monthlyFee)}
+                    </div>
+                    {!studentProfile && !child.birthDate && <p className="family-sheet-empty">Todavía no hay datos individuales de inscripción para este alumno.</p>}
                   </div>
                 </article>;
               })}

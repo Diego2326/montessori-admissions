@@ -25,6 +25,8 @@ export function StationWorkspace({ station, initialStudentUuid, access }: { stat
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [studentsLoaded, setStudentsLoaded] = useState(false);
+  const [studentsLoading, setStudentsLoading] = useState(false);
   const [schoolYearId, setSchoolYearId] = useState(0);
   const [filter, setFilter] = useState<Filter>("new");
   const [search, setSearch] = useState("");
@@ -35,45 +37,83 @@ export function StationWorkspace({ station, initialStudentUuid, access }: { stat
   const [deepLinkHandled, setDeepLinkHandled] = useState(false);
   const [error, setError] = useState("");
   const { version, area } = useLiveUpdates();
-  const reload = useCallback(async () => {
+  const reloadOrders = useCallback(async () => {
     try {
-      const years = await operation<SchoolYear[]>("school-years");
-      const yearId = years.find((year) => year.year === 2027)?.id ?? 0;
-      setSchoolYearId(yearId);
-      const [nextOrders, nextProducts, nextStudents] = await Promise.all([
-        operation<Order[]>(`admission-stations/${station}/orders`),
-        operation<Product[]>(`admission-stations/${station}/products`),
-        yearId
-          ? operation<Student[]>(
-              `admission-stations/students?schoolYearId=${yearId}`,
-            )
-          : Promise.resolve([]),
-      ]);
-      setOrders(nextOrders);
-      setProducts(nextProducts);
-      setStudents(nextStudents);
+      setOrders(await operation<Order[]>(`admission-stations/${station}/orders`));
       setError("");
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "No se pudo cargar la estación",
-      );
+      setError(cause instanceof Error ? cause.message : "No se pudieron cargar las órdenes");
     }
   }, [station]);
+
+  const reloadProducts = useCallback(async () => {
+    try {
+      setProducts(await operation<Product[]>(`admission-stations/${station}/products`));
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudieron cargar los productos");
+    }
+  }, [station]);
+
+  const reloadStudents = useCallback(async (force = false) => {
+    if (studentsLoading || (!force && studentsLoaded)) return;
+    setStudentsLoading(true);
+    try {
+      setStudents(await operation<Student[]>("admission-stations/students?schoolYear=2027"));
+      setStudentsLoaded(true);
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudieron cargar los alumnos");
+      setStudentsLoaded(true);
+    } finally {
+      setStudentsLoading(false);
+    }
+  }, [studentsLoaded, studentsLoading]);
+
+  const reloadCatalogs = useCallback(async () => {
+    try {
+      const [years, nextProducts] = await Promise.all([
+        operation<SchoolYear[]>("school-years"),
+        operation<Product[]>(`admission-stations/${station}/products`),
+      ]);
+      setSchoolYearId(years.find((year) => year.year === 2027)?.id ?? 0);
+      setProducts(nextProducts);
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudieron cargar los datos de la estación");
+    }
+  }, [station]);
+
+  const reload = useCallback(async () => {
+    await Promise.all([reloadOrders(), reloadCatalogs()]);
+  }, [reloadCatalogs, reloadOrders]);
+
+  const reloadOrdersAndProducts = useCallback(async () => {
+    await Promise.all([reloadOrders(), reloadProducts()]);
+  }, [reloadOrders, reloadProducts]);
+
   useEffect(() => {
     const timer = setTimeout(() => void reload(), 0);
     return () => clearTimeout(timer);
   }, [reload]);
   useEffect(() => {
-    if (
-      !version ||
-      (area && ![station, "ENROLLMENTS", "FINANCE"].includes(area))
-    )
-      return;
-    const timer = setTimeout(() => void reload(), 0);
+    if (!version) return;
+    const update = !area
+      ? reload
+      : area === station
+        ? reloadOrdersAndProducts
+        : area === "ENROLLMENTS"
+          ? composing ? () => reloadStudents(true) : null
+          : area === "FINANCE"
+            ? reloadOrders
+            : null;
+    if (!update) return;
+    const timer = setTimeout(() => void update(), 0);
     return () => clearTimeout(timer);
-  }, [version, area, station, reload]);
+  }, [version, area, station, composing, reload, reloadOrdersAndProducts, reloadOrders, reloadStudents]);
+  useEffect(() => {
+    if (composing || (initialStudentUuid && !deepLinkHandled)) void reloadStudents();
+  }, [composing, initialStudentUuid, deepLinkHandled, reloadStudents]);
   useEffect(() => {
     if (deepLinkHandled || !initialStudentUuid || !students.length) return;
     const student = students.find((item) => item.studentUuid === initialStudentUuid);
@@ -318,6 +358,7 @@ export function StationWorkspace({ station, initialStudentUuid, access }: { stat
           station={station}
           products={products}
           students={students}
+          studentsLoading={studentsLoading}
           schoolYearId={schoolYearId}
           initialStudentId={composeStudentId ?? undefined}
           order={editing}
@@ -330,7 +371,7 @@ export function StationWorkspace({ station, initialStudentUuid, access }: { stat
             setComposing(false);
             setEditingId(null);
             setSelectedId(order.id);
-            void reload();
+            void reloadOrdersAndProducts();
           }}
         />
       )}
@@ -343,7 +384,7 @@ export function StationWorkspace({ station, initialStudentUuid, access }: { stat
             setEditingId(selected.id);
             setSelectedId(null);
           }}
-          onChanged={reload}
+          onChanged={reloadOrdersAndProducts}
         />
       )}
     </WorkspaceShell>

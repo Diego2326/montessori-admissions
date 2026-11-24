@@ -88,6 +88,15 @@ export function demoOperation<T>(path: string): T {
   if (route === "school-years") return json([{ id: 2027, year: 2027, active: true }]) as T;
   if (route === "admission-workflow/2027/overview") return json({ candidates: demoCandidates }) as T;
   if (route === "admission-workflow/families") return json(families) as T;
+  if (route === "admission-workflow/pre-enrollment-family-status") return json([1]) as T;
+  if (/^admission-workflow\/families\/\d+\/latest-pre-enrollment$/.test(route)) return json({ submission: route.includes("/1/") ? {
+    id: 701, linkId: 601, familyId: 1, familyName: "Méndez López", recipientType: "MOTHER", recipientName: "Andrea López",
+    wantsEnroll: true, selectedStudentPublicIds: ["demo-student-101", "demo-student-102"], submittedAt: "2026-10-20T15:30:00Z", profile: {},
+    students: [
+      { publicId: "demo-student-101", firstName: "Sofía", lastName: "Méndez López", birthDate: null, selected: true, currentGrade: "Preparatoria" },
+      { publicId: "demo-student-102", firstName: "Mateo", lastName: "Méndez López", birthDate: null, selected: true, currentGrade: "Segundo primaria" },
+    ],
+  } : null }) as T;
   if (route === "admission-workflow/pre-enrollment-responses") {
     const submissions: PreEnrollmentSubmissionPage["items"] = [{
       id: 701,
@@ -165,7 +174,8 @@ export function demoOperation<T>(path: string): T {
   }
   if (route === "enrollments") {
     const yearId = Number(query.get("schoolYearId"));
-    return json(yearId ? enrollments.filter((item) => item.schoolYearId === yearId) : enrollments) as T;
+    const year = Number(query.get("schoolYear"));
+    return json(yearId ? enrollments.filter((item) => item.schoolYearId === yearId) : year ? enrollments.filter((item) => item.schoolYear === year) : enrollments) as T;
   }
   if (/^students\/\d+\/enrollments$/.test(route)) return json(enrollments.filter((item) => item.studentId === Number(route.split("/")[1]))) as T;
   if (/^admission-stations\/(BOOKS|UNIFORMS)\/products$/.test(route)) return json(products.filter((item) => item.station === route.split("/")[1])) as T;

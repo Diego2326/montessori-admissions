@@ -7,7 +7,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { operation, save } from "@/lib/operations/client";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
-import type { Bootstrap, CountryCallingCode, Enrollment, EnrollmentProfile, FamilyIntake, FamilySummary, PreEnrollmentSubmissionPage } from "@/lib/operations/types";
+import type { Bootstrap, CountryCallingCode, Enrollment, EnrollmentProfile, FamilyIntake, PreEnrollmentSubmission } from "@/lib/operations/types";
 import { DatePartsField } from "./DatePartsField";
 import { guatemalaLocations } from "./guatemalaLocations";
 import { civilStatusOptions, nationalityOptions, optionsWithExistingValue, representativeTypeOptions } from "./normalizedOptions";
@@ -53,25 +53,35 @@ function promotedGrade(current: string, grades: Bootstrap["gradeLevels"]) {
 }
 
 async function latestPreEnrollmentForFamily(familyId: number) {
-  const pageSize = 100;
-  const firstPage = await operation<PreEnrollmentSubmissionPage>(`admission-workflow/pre-enrollment-responses?page=1&pageSize=${pageSize}&decision=all&sort=newest`);
-  const pageCount = Math.ceil(firstPage.total / pageSize);
-  const findLatest = (items: PreEnrollmentSubmissionPage["items"]) => items
-    .filter((item) => item.familyId === familyId)
-    .sort((left, right) => Date.parse(right.submittedAt) - Date.parse(left.submittedAt) || right.id - left.id)[0] ?? null;
-  const firstMatch = findLatest(firstPage.items);
-  if (firstMatch || pageCount <= 1) return firstMatch;
-  for (let startPage = 2; startPage <= pageCount; startPage += 5) {
-    const pageNumbers = Array.from({ length: Math.min(5, pageCount - startPage + 1) }, (_, index) => startPage + index);
-    const pages = await Promise.all(pageNumbers.map((page) => operation<PreEnrollmentSubmissionPage>(`admission-workflow/pre-enrollment-responses?page=${page}&pageSize=${pageSize}&decision=all&sort=newest`)));
-    const match = findLatest(pages.flatMap((page) => page.items));
-    if (match) return match;
-  }
-  return null;
+  const response = await operation<{ submission: PreEnrollmentSubmission | null }>(`admission-workflow/families/${familyId}/latest-pre-enrollment`);
+  return response.submission;
 }
 
 function profileValues(profile: EnrollmentProfile) {
   return Object.fromEntries(Object.entries(profile).filter(([, value]) => value !== null && value !== undefined)) as EnrollmentProfile;
+}
+
+const familySharedProfileKeys = [
+  "submissionDate", "address", "city", "department", "municipality", "emergencyPhone",
+  "emergencyContactName", "emergencyContactPhone", "emergencyContacts", "motherName",
+  "motherBirthDate", "motherPhone", "motherEmail", "motherDpi", "motherHomePhone",
+  "motherOfficePhone", "motherOccupation", "motherWorkplace", "fatherName", "fatherBirthDate",
+  "fatherPhone", "fatherEmail", "fatherHomePhone", "fatherOfficePhone", "fatherDpi",
+  "fatherOccupation", "fatherWorkplace", "otherContact", "emailMarketingConsent",
+  "emailMarketingConsentAt", "representativeEmail", "representativeName", "representativeType",
+  "representativeFirstName", "representativeLastName", "representativeAge", "representativeBirthDate",
+  "representativeCivilStatus", "representativeNationality", "representativeOccupation",
+  "representativeWorkplace", "representativeDocumentType", "representativeDocument",
+  "representativeResidence", "representativeHomePhone", "representativeOfficePhone",
+  "representativeMobilePhone",
+] as const;
+
+function familySharedProfile(profile: EnrollmentProfile): EnrollmentProfile {
+  return Object.fromEntries(
+    familySharedProfileKeys
+      .filter((key) => Object.hasOwn(profile, key))
+      .map((key) => [key, profile[key]]),
+  ) as EnrollmentProfile;
 }
 
 function emergencyContactsFromProfile(profile: EnrollmentProfile): EmergencyContact[] {
@@ -182,24 +192,33 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
 
   useEffect(() => {
     let active = true;
+    const needsCandidates = entryType === "REINSCRIPTION" || initialStudentId != null;
+    const familyDetailPromise = initialFamilyId
+      ? operation<FamilyIntake>(`admission-workflow/families/${initialFamilyId}`)
+      : Promise.resolve(null);
+    const enrollmentPromise = initialEnrollmentId
+      ? operation<Enrollment>(`enrollments/${initialEnrollmentId}`)
+      : Promise.resolve(null);
     void Promise.all([
-      operation<FamilySummary[]>("admission-workflow/families"),
-      operation<{ candidates: AdmissionCandidate[] }>("admission-workflow/2027/overview"),
-      operation<Bootstrap>("enrollments/bootstrap"),
+      needsCandidates
+        ? operation<{ candidates: AdmissionCandidate[] }>(initialStudentId == null
+          ? "admission-workflow/2027/overview"
+          : `admission-workflow/students/${initialStudentId}/candidate-group`)
+        : Promise.resolve({ candidates: [] as AdmissionCandidate[] }),
+      operation<Bootstrap>("enrollments/bootstrap?summary=true"),
       operation<CountryCallingCode[]>("country-codes"),
-    ]).then(async ([familyRows, overview, setup, countryRows]) => {
+    ]).then(async ([overview, setup, countryRows]) => {
       if (!active) return;
       setCandidates(overview.candidates); setBootstrap(setup);
       setCountryCodes(countryRows);
       setPhoneCountries(Object.fromEntries(["motherPhone", "motherHomePhone", "motherOfficePhone", "fatherPhone", "fatherHomePhone", "fatherOfficePhone", "emergencyPhone", "emergencyContactPhone", "representativeHomePhone", "representativeOfficePhone", "representativeMobilePhone"].map((key) => [key, "GT"])));
-      const family = familyRows.find((item) => item.id === initialFamilyId);
-      let savedFamilyName = family?.name ?? "";
+      let savedFamilyName = "";
       let savedFamilyProfile: EnrollmentProfile = {};
       if (initialFamilyId) {
-        setFamilyName(savedFamilyName);
         try {
-          const detail = await operation<FamilyIntake>(`admission-workflow/families/${initialFamilyId}`);
+          const detail = await familyDetailPromise;
           if (!active) return;
+          if (!detail) throw new Error("Family details were not returned");
           const savedProfile = profileValues(detail.profile);
           savedFamilyProfile = savedProfile;
           savedFamilyName = detail.name || savedFamilyName;
@@ -213,10 +232,11 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
         }
       }
       if (initialEnrollmentId) {
-        const existing = await operation<Enrollment>(`enrollments/${initialEnrollmentId}`);
+        const existing = await enrollmentPromise;
         if (!active) return;
-        if (existing.schoolYear !== 2027 || existing.status !== "PENDIENTE_FIRMA") {
-          setError(existing.status === "ACTIVO" ? "Esta inscripción ya está activa y no se puede editar." : "Sólo se pueden editar inscripciones de 2027 pendientes de firma.");
+        if (!existing) throw new Error("Enrollment was not returned");
+        if (existing.schoolYear !== 2027 || existing.profile?.contractSignedAt) {
+          setError(existing.profile?.contractSignedAt ? "El contrato ya fue firmado y esta inscripción no se puede editar." : "Sólo se pueden editar inscripciones de 2027.");
           return;
         }
         if (!initialFamilyId || (initialStudentId && existing.studentId !== initialStudentId)) {
@@ -269,7 +289,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
         if (candidate) {
           setSearch(`${candidate.firstName} ${candidate.lastName}`);
           if (entryType === "REINSCRIPTION" && candidate.familyId) {
-            await loadFamilyStudents(candidate, overview.candidates, setup, familyRows);
+            await loadFamilyStudents(candidate, overview.candidates, setup);
           } else {
             await importStudent(initialStudentId, overview.candidates, setup);
           }
@@ -285,8 +305,9 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
 
   const gradeOptions = bootstrap?.gradeLevels ?? [];
   const departmentOptions = Object.keys(guatemalaLocations).sort((a, b) => a.localeCompare(b, "es"));
-  const municipalityOptions = profile.department && profile.department in guatemalaLocations
-    ? guatemalaLocations[profile.department as keyof typeof guatemalaLocations]
+  const municipality = String(profile.department ?? "");
+  const municipalityOptions = municipality && municipality in guatemalaLocations
+    ? guatemalaLocations[municipality as keyof typeof guatemalaLocations]
     : [];
   const year = bootstrap?.schoolYears.find((item) => item.year === 2027);
   const filteredCandidates = useMemo(() => candidates.filter((candidate) => {
@@ -298,43 +319,46 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
     return searchable.includes(needle);
   }), [candidates, familyId, search, students, year]);
 
-  async function loadFamilyStudents(selectedCandidate: AdmissionCandidate, candidateRows: AdmissionCandidate[], setup: Bootstrap, familyRows: FamilySummary[]) {
+  async function loadFamilyStudents(selectedCandidate: AdmissionCandidate, candidateRows: AdmissionCandidate[], setup: Bootstrap) {
     const selectedFamilyId = selectedCandidate.familyId;
     if (!selectedFamilyId) return;
     setFamilyId(selectedFamilyId);
-    const family = familyRows.find((item) => item.id === selectedFamilyId);
-    setFamilyName(family?.name ?? selectedCandidate.familyName ?? "");
+    setFamilyName(selectedCandidate.familyName ?? "");
     setProfile({ submissionDate: localDate() });
     setEmergencyContacts([{ name: "", phone: "", alternatePhone: "" }]);
-
-    let submission: PreEnrollmentSubmissionPage["items"][number] | null = null;
-    let familyDetail: FamilyIntake | null = null;
-    const warnings: string[] = [];
-    const [detailResult, submissionResult] = await Promise.allSettled([
-      operation<FamilyIntake>(`admission-workflow/families/${selectedFamilyId}`),
-      latestPreEnrollmentForFamily(selectedFamilyId),
-    ]);
-    if (detailResult.status === "fulfilled") familyDetail = detailResult.value;
-    else warnings.push("No se pudo cargar la ficha guardada de la familia.");
-    if (submissionResult.status === "fulfilled") submission = submissionResult.value;
-    else warnings.push("No se pudo consultar la respuesta de preinscripción; se cargaron los datos disponibles del expediente.");
-
-    if (submission || familyDetail) {
-      setFamilyName(familyDetail?.name || submission?.familyName || family?.name || selectedCandidate.familyName || "");
-    }
 
     const familyCandidates = candidateRows.filter((candidate) => candidate.familyId === selectedFamilyId && candidate.status !== "GRADUATED");
     const members = familyCandidates.some((candidate) => candidate.id === selectedCandidate.id)
       ? familyCandidates
       : [selectedCandidate, ...familyCandidates];
+    let submission: PreEnrollmentSubmission | null = null;
+    let familyDetail: FamilyIntake | null = null;
+    let enrollmentHistory: Enrollment[] = [];
+    const warnings: string[] = [];
+    const [detailResult, submissionResult, historyResult] = await Promise.allSettled([
+      operation<FamilyIntake>(`admission-workflow/families/${selectedFamilyId}`),
+      latestPreEnrollmentForFamily(selectedFamilyId),
+      operation<Enrollment[]>(`enrollments/student-summaries?studentIds=${members.map(({ id }) => id).join(",")}`),
+    ]);
+    if (detailResult.status === "fulfilled") familyDetail = detailResult.value;
+    else warnings.push("No se pudo cargar la ficha guardada de la familia.");
+    if (submissionResult.status === "fulfilled") submission = submissionResult.value;
+    else warnings.push("No se pudo consultar la respuesta de preinscripción; se cargaron los datos disponibles del expediente.");
+    if (historyResult.status === "fulfilled") enrollmentHistory = historyResult.value;
+    else warnings.push("No se pudo cargar el historial de inscripción de los alumnos de la familia.");
+
+    if (submission || familyDetail) {
+      setFamilyName(familyDetail?.name || submission?.familyName || selectedCandidate.familyName || "");
+    }
+
     const savedPreEnrollment = submission;
-    const loadedMembers = await Promise.all(members.map(async (candidate) => {
-      try {
-        return { candidate, history: await operation<Enrollment[]>(`students/${candidate.id}/enrollments`) };
-      } catch {
-        warnings.push(`No se pudo cargar el historial de ${candidate.firstName} ${candidate.lastName}.`);
-        return { candidate, history: [] as Enrollment[] };
-      }
+    const historiesByStudent = new Map<number, Enrollment[]>();
+    for (const enrollment of enrollmentHistory) {
+      historiesByStudent.set(enrollment.studentId, [...(historiesByStudent.get(enrollment.studentId) ?? []), enrollment]);
+    }
+    const loadedMembers = members.map((candidate) => ({
+      candidate,
+      history: historiesByStudent.get(candidate.id) ?? [],
     }));
 
     const selectedHistory = loadedMembers.find(({ candidate }) => candidate.id === selectedCandidate.id)?.history ?? [];
@@ -496,8 +520,16 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
     if (candidate.status === "GRADUATED") { setError("Quinto bachillerato es el último grado. Revisa el caso antes de iniciar una reinscripción."); return; }
     if (candidate.familyId && familyId && candidate.familyId !== familyId) { setError("Este alumno pertenece a otra familia. Revisa el vínculo antes de importarlo."); return; }
     let yearEnrollments: Enrollment[];
-    try { yearEnrollments = await operation<Enrollment[]>(`students/${candidate.id}/enrollments`); }
-    catch { setError("No se pudo consultar el historial del alumno. Intenta de nuevo antes de importarlo."); return; }
+    let historicalIntakes: HistoricalIntake[];
+    try {
+      [yearEnrollments, historicalIntakes] = await Promise.all([
+        operation<Enrollment[]>(`students/${candidate.id}/enrollments?summary=true`),
+        operation<HistoricalIntake[]>(`admission-workflow/students/${candidate.id}/historical-intakes`).catch(() => []),
+      ]);
+    } catch {
+      setError("No se pudo consultar el historial del alumno. Intenta de nuevo antes de importarlo.");
+      return;
+    }
     const previous = yearEnrollments.filter((item) => (item.schoolYear ?? 0) < 2027).sort((a, b) => (b.schoolYear ?? 0) - (a.schoolYear ?? 0))[0];
     const targetEnrollment = yearEnrollments.find((item) => item.schoolYear === 2027);
     if (targetEnrollment) { setError(`${candidate.firstName} ${candidate.lastName} ya tiene una inscripción para 2027. Ábrela desde la ficha familiar para revisarla.`); return; }
@@ -516,7 +548,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
       otherInsuranceName: String(previous?.profile?.otherInsuranceName ?? ""),
     });
     setSelectedCandidateId(candidate.id);
-    setHistoricalIntakes(await operation<HistoricalIntake[]>(`admission-workflow/students/${candidate.id}/historical-intakes`).catch(() => []));
+    setHistoricalIntakes(historicalIntakes);
   }
 
   function importHistoricalIntake(row: HistoricalIntake) {
@@ -603,12 +635,12 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
       if (!student) return;
       enrollmentStudents.push(student);
     }
-    if (!editingEnrollment && enrollmentStudents.some((student) => !student.insuranceSelection || (student.insuranceSelection === "OTHER" && !student.otherInsuranceName.trim()))) {
+    if (enrollmentStudents.some((student) => !student.insuranceSelection || (student.insuranceSelection === "OTHER" && !student.otherInsuranceName.trim()))) {
       setError("Cada alumno que se inscribirá debe tener un seguro seleccionado. Si es de otra aseguradora, indica cuál.");
       return;
     }
-    if (editingEnrollment && (editingEnrollment.status !== "PENDIENTE_FIRMA" || enrollmentStudents.length !== 1 || enrollmentStudents[0]?.studentId !== editingEnrollment.studentId)) {
-      setError("Sólo se pueden editar los datos del alumno de una inscripción pendiente de firma.");
+    if (editingEnrollment && (editingEnrollment.profile?.contractSignedAt || enrollmentStudents.length !== 1 || enrollmentStudents[0]?.studentId !== editingEnrollment.studentId)) {
+      setError("El contrato ya fue firmado o la inscripción no se puede editar.");
       return;
     }
     if (!entryType || !enrollmentStudents.length || !year) { setError(entryType === "REINSCRIPTION" ? "Selecciona al menos un alumno que continuará en 2027." : "Agrega al menos un alumno y confirma el ciclo 2027."); return; }
@@ -713,10 +745,17 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
         if (value && country) timestampedProfile[key] = `${country.dialCode} ${formatPhone(String(value), country.dialCode, country.phoneDigits)}`;
       }
       if (!editingEnrollment) {
-        for (const student of enrollmentStudents) {
-          if (!student.studentId) continue;
-          const existing = await operation<Enrollment[]>(`students/${student.studentId}/enrollments`);
-          if (existing.some((item) => item.schoolYear === 2027)) throw new Error(`${student.firstName} ${student.lastName} ya está inscrito en 2027. Actualiza su inscripción desde la ficha existente.`);
+        const studentsToCheck = enrollmentStudents.filter((student): student is StudentDraft & { studentId: number } => Boolean(student.studentId));
+        if (studentsToCheck.length > 0) {
+          const studentIds = [...new Set(studentsToCheck.map((student) => student.studentId))];
+          const enrollmentBatches = await Promise.all(Array.from({ length: Math.ceil(studentIds.length / 100) }, (_, index) => {
+            const batch = studentIds.slice(index * 100, (index + 1) * 100);
+            return operation<Enrollment[]>(`enrollments/student-summaries?studentIds=${batch.join(",")}`);
+          }));
+          const existingEnrollments = enrollmentBatches.flat();
+          const enrolledStudentIds = new Set(existingEnrollments.filter((item) => item.schoolYear === 2027).map((item) => item.studentId));
+          const duplicate = studentsToCheck.find((student) => enrolledStudentIds.has(student.studentId));
+          if (duplicate) throw new Error(`${duplicate.firstName} ${duplicate.lastName} ya está inscrito en 2027. Actualiza su inscripción desde la ficha existente.`);
         }
       }
       const representativeFullName = `${effectiveProfile.representativeFirstName ?? ""} ${effectiveProfile.representativeLastName ?? ""}`.trim();
@@ -724,12 +763,12 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
       if (editingEnrollment) {
         if (!familyId) throw new Error("No se encontró la familia vinculada a esta inscripción.");
         const latestEnrollment = await operation<Enrollment>(`enrollments/${editingEnrollment.id}`);
-        if (latestEnrollment.schoolYear !== 2027 || latestEnrollment.status !== "PENDIENTE_FIRMA") {
+        if (latestEnrollment.schoolYear !== 2027 || latestEnrollment.profile?.contractSignedAt) {
           throw new Error("El contrato ya fue firmado o la inscripción cambió de estado. No se guardaron los cambios.");
         }
         const student = enrollmentStudents[0];
         const familyProfile = {
-          ...timestampedProfile,
+          ...familySharedProfile(timestampedProfile),
           emergencyContacts: emergencyContacts.map((contact) => ({ name: contact.name.trim(), phone: contact.phone.trim(), alternatePhone: contact.alternatePhone.trim() || null })),
         };
         await save<FamilyIntake>(`admission-workflow/families/${familyId}`, { name: defaultName, profile: familyProfile }, "PUT");
@@ -764,7 +803,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
       }
       const saved = await save<{ family: FamilyIntake; enrollments: Enrollment[] }>("admission-workflow/intakes", {
         familyId, familyName: defaultName,
-        profile: { ...timestampedProfile, emergencyContacts: emergencyContacts.map((contact) => ({ name: contact.name.trim(), phone: contact.phone.trim(), alternatePhone: contact.alternatePhone.trim() || null })) },
+        profile: { ...familySharedProfile(timestampedProfile), emergencyContacts: emergencyContacts.map((contact) => ({ name: contact.name.trim(), phone: contact.phone.trim(), alternatePhone: contact.alternatePhone.trim() || null })) },
         students: enrollmentStudents.map((student) => ({ historicalIntakeId: student.historicalIntakeId ?? null, enrollment: {
           ...(student.studentId ? { studentId: student.studentId, studentUuid: student.studentUuid } : {}),
           firstName: student.firstName, lastName: student.lastName,
@@ -798,7 +837,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
     const country = isPhone ? countryForPhone(key) : undefined;
     const formatter = normalizedKey.includes("dpi") || (normalizedKey === "representativedocument" && profile.representativeDocumentType === "DPI") ? formatDpi : isPhone ? (value: string) => formatPhone(value, country?.dialCode, country?.phoneDigits) : null;
     const fieldError = fieldErrors[key];
-    return <label className={`field-label public-pre-field ${fieldError ? "has-error" : ""}`} key={key}><span>{label}{required && <b className="public-pre-required" aria-hidden="true"> *</b>}{isPhone && !required && <small className="public-pre-optional">Opcional</small>}</span><input type={type} inputMode={formatter ? "numeric" : undefined} maxLength={isPhone ? (country?.phoneDigits ?? 8) + 1 : normalizedKey.includes("dpi") || normalizedKey === "representativedocument" ? 15 : undefined} placeholder={isPhone ? "1234-5678" : formatter ? "1234 56789 0123" : undefined} value={formatter ? formatter(String(profile[key] ?? "")) : profile[key] ?? ""} aria-invalid={Boolean(fieldError)} aria-describedby={fieldError ? `${key}-error` : undefined} onChange={(event) => {
+    return <label className={`field-label public-pre-field ${fieldError ? "has-error" : ""}`} key={key}><span>{label}{required && <b className="public-pre-required" aria-hidden="true"> *</b>}{isPhone && !required && <small className="public-pre-optional">Opcional</small>}</span><input type={type} inputMode={formatter ? "numeric" : undefined} maxLength={isPhone ? (country?.phoneDigits ?? 8) + 1 : normalizedKey.includes("dpi") || normalizedKey === "representativedocument" ? 15 : undefined} placeholder={isPhone ? "1234-5678" : formatter ? "1234 56789 0123" : undefined} value={formatter ? formatter(String(profile[key] ?? "")) : String(profile[key] ?? "")} aria-invalid={Boolean(fieldError)} aria-describedby={fieldError ? `${key}-error` : undefined} onChange={(event) => {
       const nextValue = event.target.value;
       setValue(key, type === "number" ? Number(nextValue) || null : formatter ? formatter(nextValue) : nextValue);
       if (type === "email") setFieldErrors((current) => {
@@ -987,7 +1026,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
               <label className="field-label public-pre-field"><span>Género del alumno{(entryType !== "REINSCRIPTION" || student.enroll) && <b className="public-pre-required" aria-hidden="true"> *</b>}</span><select value={student.gender} disabled={entryType === "REINSCRIPTION" && (!student.enroll || student.alreadyEnrolled)} required={entryType !== "REINSCRIPTION" || student.enroll} onChange={(event) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, gender: event.target.value as StudentDraft["gender"] } : item))}><option value="">Seleccione</option><option value="BOY">Niño</option><option value="GIRL">Niña</option></select></label>
               <label className="field-label public-pre-field"><span>Grado para 2027 <b className="public-pre-required" aria-hidden="true"> *</b></span><select value={student.gradeId || ""} onChange={(event) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, gradeId: Number(event.target.value) } : item))} required={entryType !== "REINSCRIPTION" || student.enroll}><option value="">Seleccione</option>{gradeOptions.map((grade) => <option value={grade.id} key={grade.id}>{grade.name}</option>)}</select></label>
             </div>
-            {!editingEnrollment && <InsuranceChoiceFields nameKey={student.key} value={student.insuranceSelection} otherName={student.otherInsuranceName} disabled={entryType === "REINSCRIPTION" && (!student.enroll || student.alreadyEnrolled)} onSelection={(value) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, insuranceSelection: value } : item))} onOtherName={(value) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, otherInsuranceName: value } : item))} />}
+            <InsuranceChoiceFields nameKey={student.key} value={student.insuranceSelection} otherName={student.otherInsuranceName} disabled={!editingEnrollment && entryType === "REINSCRIPTION" && (!student.enroll || student.alreadyEnrolled)} onSelection={(value) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, insuranceSelection: value } : item))} onOtherName={(value) => setStudents((current) => current.map((item) => item.key === student.key ? { ...item, otherInsuranceName: value } : item))} />
             {(entryType !== "REINSCRIPTION" || student.newFamilyStudent) && <button type="button" className="btn btn-secondary" onClick={() => setStudents((current) => current.filter((item) => item.key !== student.key))}>Quitar alumno</button>}
           </article>)}</div>}
           {!editingEnrollment && (entryType !== "REINSCRIPTION" || Boolean(draft.studentId || draft.newFamilyStudent || draft.firstName.trim() || draft.lastName.trim())) && <article className="public-pre-student admission-student-draft">

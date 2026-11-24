@@ -1,4 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 :root {
   color-scheme: dark;
@@ -13,7 +12,7 @@
   --coral: #ff9b7d;
   --mint: #61d29b;
   --yellow: #ffcb71;
-  font-family: Manrope, Arial, sans-serif;
+  font-family: "DM Sans", Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
 }
@@ -28,9 +27,69 @@ body {
   min-height: 76px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   padding: 10px clamp(20px, 4vw, 56px);
   border-bottom: 1px solid #dfe5f0;
   background: #fff;
+}
+.admissions-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.admissions-admin-link {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  padding: 0 13px;
+  border: 1px solid #dfe5f0;
+  border-radius: 10px;
+  background: #f4f7fc;
+  color: #173f8a;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.admissions-admin-link:hover {
+  border-color: #173f8a;
+  background: #eaf0fa;
+}
+.admissions-stats-dashboard { max-width: 1560px; margin: 0 auto; }
+.admissions-stats-heading { margin: 0 0 22px; }
+.admissions-stats-heading h1 { margin: 6px 0 5px; color: #173f8a; font-family: "Playfair Display", serif; font-size: clamp(26px, 3vw, 36px); font-weight: 500; letter-spacing: -0.04em; }
+.admissions-stats-heading p { margin: 0; color: #647493; }
+.admissions-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 14px; }
+.admissions-stats-grid article { display: grid; gap: 9px; min-height: 106px; padding: 18px; border: 1px solid #dfe5f0; border-radius: 15px; background: #fff; box-shadow: 0 8px 28px rgba(15, 23, 42, .04); }
+.admissions-stats-grid small { color: #647493; font-size: 12px; font-weight: 700; }
+.admissions-stats-grid strong { color: #173f8a; font-size: 30px; line-height: 1; }
+.admissions-stat-progress { height: 5px; overflow: hidden; border-radius: 99px; background: #e8edf5; }
+.admissions-stat-progress i { display: block; height: 100%; border-radius: inherit; background: #39bd82; transition: width .25s ease; }
+.admissions-stats-table-card { margin-top: 22px; overflow: hidden; border: 1px solid #dfe5f0; border-radius: 16px; background: #fff; box-shadow: 0 8px 28px rgba(15, 23, 42, .04); }
+.admissions-stats-table-card h2 { margin: 0; padding: 18px 20px; color: #173f8a; font-size: 17px; }
+.admissions-stats-table-scroll { overflow-x: auto; }
+.admissions-stats-table-card table { width: 100%; border-collapse: collapse; text-align: left; }
+.admissions-stats-table-card th, .admissions-stats-table-card td { padding: 12px 16px; border-top: 1px solid #edf0f5; color: #344563; font-size: 12px; white-space: nowrap; }
+.admissions-stats-table-card thead th { color: #647493; background: #f8f9fb; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+.admissions-stats-table-card tbody th { color: #173f8a; font-weight: 800; }
+.admissions-stats-table-card > p, .admissions-stats-loading, .admissions-stats-error { padding: 16px 20px; color: #647493; }
+.admissions-stats-error { color: #9a342e; }
+.admissions-header-actions .admissions-admin-link { min-height: 38px; }
+.admissions-header-actions .signout-button {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid #dfe5f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #173f8a;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.admissions-header-actions .signout-button:hover {
+  border-color: #173f8a;
+  background: #f4f7fc;
 }
 .admissions-brand {
   display: flex;
@@ -149,6 +208,81 @@ body {
   font-size: 12px;
   font-weight: 700;
 }
+.grade-batch-links {
+  display: grid;
+  gap: 15px;
+  padding: 20px;
+  border: 1px solid #dfe5f0;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+}
+.grade-batch-links-copy > span {
+  color: #bd8133;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+.grade-batch-links-copy h2 {
+  margin: 5px 0;
+  color: #173f8a;
+  font-size: 18px;
+}
+.grade-batch-links-copy p {
+  margin: 0;
+  color: #647493;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.grade-batch-links-controls {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.1fr) minmax(220px, 1fr) auto;
+  align-items: end;
+  gap: 14px;
+}
+.grade-batch-links-controls .grade-table-filter select {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 13px;
+  border: 1px solid #d6e0ee;
+  border-radius: 10px;
+  background: #fff;
+  color: #17366f;
+  font-size: 13px;
+}
+.grade-batch-links-count {
+  margin: 0 0 13px;
+  color: #647493;
+  font-size: 12px;
+  font-weight: 700;
+}
+.grade-batch-button {
+  min-height: 46px;
+  padding: 0 17px;
+  border: 0;
+  border-radius: 10px;
+  background: #173f8a;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.grade-batch-button:hover { background: #102f6d; }
+.grade-batch-button:disabled { cursor: wait; opacity: .55; }
+.grade-batch-button.secondary { min-height: 40px; border: 1px solid #d6e0ee; background: #fff; color: #173f8a; }
+.grade-batch-button.secondary:hover { background: #f4f7fc; }
+.grade-batch-error { margin: 0; color: #a13434; font-size: 12px; }
+.grade-batch-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 13px;
+  border-top: 1px solid #e8edf4;
+  color: #526986;
+  font-size: 12px;
+}
 .grade-table-card,
 .grade-table-empty {
   overflow: hidden;
@@ -262,6 +396,144 @@ body {
 }
 .grade-row-action.secondary:hover {
   background: #dfe8f5;
+}
+.grade-row-action:disabled {
+  cursor: wait;
+  opacity: .7;
+}
+.grade-row-downloads {
+  position: relative;
+  width: 100%;
+}
+.grade-row-downloads > summary {
+  position: relative;
+  padding-right: 28px;
+  cursor: pointer;
+  list-style: none;
+}
+.grade-row-downloads > summary::-webkit-details-marker {
+  display: none;
+}
+.grade-row-downloads > summary::after {
+  position: absolute;
+  right: 12px;
+  content: "▾";
+  font-size: 14px;
+}
+.grade-row-downloads[open] > summary::after {
+  content: "▴";
+}
+.grade-row-downloads-menu {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 7px;
+  border: 1px solid #d6e0ee;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(23, 63, 138, .12);
+}
+.grade-row-downloads-menu a {
+  display: block;
+  padding: 9px 10px;
+  border-radius: 7px;
+  color: #173f8a;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.grade-row-downloads-menu a:hover {
+  background: #eef3fa;
+}
+.grade-pre-enrollment-error {
+  color: #647493;
+  font-size: 10px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.grade-pre-enrollment-error { color: #a13434; }
+.pre-enrollment-floating-card {
+  position: fixed;
+  z-index: 1000;
+  right: 24px;
+  bottom: 24px;
+  display: grid;
+  gap: 11px;
+  width: min(420px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid #dfe5f0;
+  border-radius: 18px;
+  background: #fff;
+  color: #17366f;
+  box-shadow: 0 18px 60px rgba(16, 35, 75, .25);
+}
+.pre-enrollment-floating-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pre-enrollment-floating-card header span {
+  color: #647493;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .1em;
+}
+.pre-enrollment-floating-card h2 {
+  margin: 4px 0 0;
+  color: #173f8a;
+  font-size: 19px;
+}
+.pre-enrollment-floating-card header button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 9px;
+  background: #f0f3f8;
+  color: #344563;
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pre-enrollment-floating-card label {
+  color: #344563;
+  font-size: 12px;
+  font-weight: 700;
+}
+.pre-enrollment-floating-card input {
+  width: 100%;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid #dfe5f0;
+  border-radius: 10px;
+  background: #f8f9fb;
+  color: #173f8a;
+  font: inherit;
+  font-size: 12px;
+}
+.pre-enrollment-floating-copy {
+  min-height: 42px;
+  border: 0;
+  border-radius: 10px;
+  background: #173f8a;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.pre-enrollment-floating-copy:hover { background: #102f6d; }
+.pre-enrollment-floating-card p,
+.pre-enrollment-floating-card small {
+  margin: 0;
+  color: #647493;
+  font-size: 11px;
+  line-height: 1.45;
+}
+@media (max-width: 600px) {
+  .pre-enrollment-floating-card { right: 12px; bottom: 12px; }
 }
 .family-sheet-page {
   min-height: calc(100vh - 76px);
@@ -500,6 +772,11 @@ body {
   color: #647493;
   font-size: 12px;
 }
+.family-sheet-preferences {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #edf0f5;
+}
 .family-sheet-child {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) auto minmax(180px, auto);
@@ -562,6 +839,80 @@ body {
 .family-sheet-child-actions button.is-locked:disabled {
   cursor: not-allowed;
   opacity: .55;
+}
+.family-sheet-downloads,
+.family-intake-downloads {
+  position: relative;
+}
+.family-sheet-downloads > summary,
+.family-intake-downloads > summary {
+  position: relative;
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  padding: 7px 28px 7px 10px;
+  border: 1px solid #d6e0ee;
+  border-radius: 8px;
+  background: #eef3fa;
+  color: #173f8a;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  list-style: none;
+}
+.family-intake-downloads > summary {
+  min-height: 42px;
+  padding: 0 32px 0 15px;
+  font-size: 12px;
+}
+.family-sheet-downloads > summary::-webkit-details-marker,
+.family-intake-downloads > summary::-webkit-details-marker {
+  display: none;
+}
+.family-sheet-downloads > summary::after,
+.family-intake-downloads > summary::after {
+  position: absolute;
+  right: 10px;
+  content: "▾";
+  font-size: 14px;
+}
+.family-sheet-downloads[open] > summary::after,
+.family-intake-downloads[open] > summary::after {
+  content: "▴";
+}
+.family-sheet-downloads-menu,
+.family-intake-downloads-menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 5px);
+  right: 0;
+  display: grid;
+  width: max-content;
+  min-width: 210px;
+  max-width: min(280px, calc(100vw - 48px));
+  gap: 4px;
+  padding: 7px;
+  border: 1px solid #d6e0ee;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(23, 63, 138, .14);
+}
+.family-sheet-downloads-menu a,
+.family-intake-downloads-menu a {
+  display: block;
+  padding: 9px 10px;
+  border-radius: 7px;
+  color: #173f8a;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-decoration: none;
+}
+.family-sheet-downloads-menu a:hover,
+.family-intake-downloads-menu a:hover {
+  background: #eef3fa;
 }
 .family-sheet-empty,
 .family-sheet-message {
@@ -904,6 +1255,9 @@ body {
     min-height: 68px;
     padding-inline: 16px;
   }
+  .admissions-header-actions { gap: 7px; }
+  .admissions-admin-link { min-height: 36px; padding-inline: 9px; font-size: 11px; }
+  .admissions-header-actions .signout-button { min-height: 36px; padding-inline: 9px; font-size: 11px; }
   .admissions-start-card {
     min-height: 0;
     flex-direction: column;
@@ -939,6 +1293,11 @@ body {
     grid-template-columns: minmax(0, 1fr);
     padding: 16px;
   }
+  .grade-batch-links { padding: 16px; }
+  .grade-batch-links-controls { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .grade-batch-links-count { margin: 0; }
+  .grade-batch-button { width: 100%; }
+  .grade-batch-result { align-items: stretch; flex-direction: column; }
   .grade-table-search {
     grid-column: auto;
   }
@@ -1219,6 +1578,9 @@ svg {
   align-items: center;
   gap: 14px;
 }
+.live-indicator { display: inline-flex; align-items: center; }
+.live-indicator i { width: 8px; height: 8px; border-radius: 50%; background: #e7a33e; }
+.live-indicator.online i { background: #39bd82; }
 .topbar-signout { display: block; }
 .main-content {
   max-width: 1560px;

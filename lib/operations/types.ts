@@ -24,15 +24,16 @@ export type Bootstrap = {
 export type CountryCallingCode = { countryCode: string; countryName: string; dialCode: string; phoneDigits: number };
 export type EnrollmentProfile = Record<
   string,
-  string | number | null | undefined
+  string | number | boolean | null | undefined
 >;
+export type FamilyStudentSummary = { firstName: string; lastName: string; currentGrade: string | null; studentId: number | null; linkSource?: string | null };
 export type FamilySummary = {
   id: number;
   name: string;
   reviewStatus: string;
-  activeStudents?: { firstName: string; lastName: string; currentGrade: string | null; studentId: number | null; linkSource?: string | null }[];
+  activeStudents?: FamilyStudentSummary[];
 };
-export type FamilyIntake = FamilySummary & { profile: EnrollmentProfile };
+export type FamilyIntake = FamilySummary & { profile: EnrollmentProfile; studentBirthDates?: Record<string, string> };
 export type PreEnrollmentLink = {
   id: number;
   familyId: number;

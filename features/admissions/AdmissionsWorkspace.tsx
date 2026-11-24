@@ -6,7 +6,7 @@ import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { useLiveUpdates } from "@/components/LiveUpdatesProvider";
 import { operation, save } from "@/lib/operations/client";
 import type { AdmissionCandidate, AdmissionsOverview } from "@/lib/admissions/types";
-import type { Bootstrap, Enrollment, FamilyIntake, FamilySummary, LegacyContractAssignment } from "@/lib/operations/types";
+import type { Bootstrap, Enrollment, EnrollmentProfile, FamilyIntake, FamilySummary, LegacyContractAssignment } from "@/lib/operations/types";
 import type { StaffAccess } from "@/lib/auth/access";
 import { downloadWorkbook } from "@/lib/admissions/xlsx";
 import { FamilyIntakePanel } from "./FamilyIntakePanel";
@@ -15,6 +15,8 @@ import { PreEnrollmentResponsesPanel } from "./PreEnrollmentResponsesPanel";
 
 type Queue = "new" | "returning" | "home" | "families" | "contracts" | "report";
 type EnrollmentStatusFilter = "ALL" | "UNENROLLED" | "PENDIENTE_FIRMA" | "PENDIENTE_PAGO" | "ACTIVO" | "INACTIVO" | "RETIRADO";
+type FamilySummaryPage = { items: FamilySummary[]; page: number; pageSize: number; total: number; gradeOptions: string[] };
+const FAMILY_PAGE_SIZE = 30;
 
 const enrollmentStatusOptions: { value: EnrollmentStatusFilter; label: string }[] = [
   { value: "ALL", label: "Todos los estados" },
@@ -46,8 +48,14 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
   const [candidates, setCandidates] = useState<AdmissionCandidate[]>(overview.candidates);
   const [families, setFamilies] = useState<FamilySummary[]>([]);
+  const [familyTotal, setFamilyTotal] = useState(0);
+  const [familyPage, setFamilyPage] = useState(1);
+  const [familyLoading, setFamilyLoading] = useState(false);
+  const [familyRefreshVersion, setFamilyRefreshVersion] = useState(0);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [contracts, setContracts] = useState<LegacyContractAssignment[]>([]);
+  const [contractsLoaded, setContractsLoaded] = useState(false);
+  const [contractsLoading, setContractsLoading] = useState(false);
   const [familyId, setFamilyId] = useState<number | null>(initialFamilyId);
   const [familyDetail, setFamilyDetail] = useState<FamilyIntake | null>(null);
   const [search, setSearch] = useState("");
@@ -62,33 +70,81 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
 
   const reload = useCallback(async () => {
     const problems: string[] = [];
-    if (access.enrollments) {
-      const result = await Promise.allSettled([operation<Bootstrap>("enrollments/bootstrap")]);
-      if (result[0].status === "fulfilled") {
-        const nextBootstrap = result[0].value;
-        const year = nextBootstrap.schoolYears.find((item) => item.year === 2027);
-        setBootstrap(nextBootstrap);
-        if (year) {
-          try { setEnrollments(await operation<Enrollment[]>(`enrollments?schoolYearId=${year.id}`)); }
-          catch (cause) { problems.push(cause instanceof Error ? cause.message : "No se pudieron cargar las inscripciones."); }
-        } else setEnrollments([]);
-      } else problems.push(result[0].reason instanceof Error ? result[0].reason.message : "No se pudo cargar el catálogo de inscripciones.");
-    } else {
-      setBootstrap(null);
-      setEnrollments([]);
+    const [bootstrapResult, enrollmentResult, candidatesResult, familiesResult] = await Promise.allSettled([
+      access.enrollments ? operation<Bootstrap>("enrollments/bootstrap?summary=true") : Promise.resolve(null),
+      access.enrollments ? operation<Enrollment[]>("enrollments?schoolYear=2027&summary=true") : Promise.resolve(null),
+      access.admissions ? operation<{ candidates: AdmissionCandidate[] }>("admission-workflow/2027/overview") : Promise.resolve(null),
+      access.admissions ? operation<FamilySummaryPage>("admission-workflow/families/page?page=1&pageSize=1&includeGradeOptions=false") : Promise.resolve(null),
+    ]);
+    if (!access.enrollments) { setBootstrap(null); setEnrollments([]); }
+    else {
+      if (bootstrapResult.status === "fulfilled") setBootstrap(bootstrapResult.value);
+      else problems.push(bootstrapResult.reason instanceof Error ? bootstrapResult.reason.message : "No se pudo cargar el catálogo de inscripciones.");
+      if (enrollmentResult.status === "fulfilled") setEnrollments(enrollmentResult.value ?? []);
+      else problems.push(enrollmentResult.reason instanceof Error ? enrollmentResult.reason.message : "No se pudieron cargar las inscripciones.");
     }
     if (access.admissions) {
-      const results = await Promise.allSettled([
-        operation<{ candidates: AdmissionCandidate[] }>("admission-workflow/2027/overview"),
-        operation<FamilySummary[]>("admission-workflow/families"),
-        operation<LegacyContractAssignment[]>("admission-workflow/legacy-contracts"),
-      ]);
-      if (results[0].status === "fulfilled") setCandidates(results[0].value.candidates);
-      else problems.push(results[0].reason instanceof Error ? results[0].reason.message : "No se pudieron cargar los alumnos.");
-      if (results[1].status === "fulfilled") setFamilies(results[1].value);
-      else problems.push(results[1].reason instanceof Error ? results[1].reason.message : "No se pudieron cargar las familias.");
-      if (results[2].status === "fulfilled") setContracts(results[2].value);
-      else problems.push(results[2].reason instanceof Error ? results[2].reason.message : "No se pudieron cargar los contratos.");
+      if (candidatesResult.status === "fulfilled") setCandidates(candidatesResult.value?.candidates ?? []);
+      else problems.push(candidatesResult.reason instanceof Error ? candidatesResult.reason.message : "No se pudieron cargar los alumnos.");
+      if (familiesResult.status === "fulfilled") setFamilyTotal(familiesResult.value?.total ?? 0);
+      else problems.push(familiesResult.reason instanceof Error ? familiesResult.reason.message : "No se pudieron cargar las familias.");
+      setFamilyRefreshVersion((value) => value + 1);
+    }
+    setError(problems[0] ?? "");
+  }, [access.admissions, access.enrollments]);
+
+  const loadContracts = useCallback(async () => {
+    if (!access.admissions) return;
+    setContractsLoading(true);
+    try {
+      setContracts(await operation<LegacyContractAssignment[]>("admission-workflow/legacy-contracts"));
+      setContractsLoaded(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudieron cargar los contratos.");
+      setContractsLoaded(true);
+    } finally {
+      setContractsLoading(false);
+    }
+  }, [access.admissions]);
+
+  useEffect(() => {
+    if (queue !== "families" || !access.admissions) return;
+    let active = true;
+    const timer = setTimeout(() => {
+      setFamilyLoading(true);
+      const params = new URLSearchParams({ page: String(familyPage), pageSize: String(FAMILY_PAGE_SIZE), includeGradeOptions: "false" });
+      if (search.trim()) params.set("q", search.trim());
+      void operation<FamilySummaryPage>(`admission-workflow/families/page?${params.toString()}`)
+        .then((result) => {
+          if (!active) return;
+          setFamilies(result.items ?? []);
+          setFamilyTotal(result.total ?? 0);
+        })
+        .catch((cause) => {
+          if (active) setError(cause instanceof Error ? cause.message : "No se pudieron cargar las familias.");
+        })
+        .finally(() => { if (active) setFamilyLoading(false); });
+    }, 160);
+    return () => { active = false; clearTimeout(timer); };
+  }, [access.admissions, familyPage, familyRefreshVersion, queue, search]);
+
+  const refreshEnrollmentData = useCallback(async () => {
+    const [enrollmentResult, candidatesResult, familiesResult] = await Promise.allSettled([
+      access.enrollments ? operation<Enrollment[]>("enrollments?schoolYear=2027&summary=true") : Promise.resolve(null),
+      access.admissions ? operation<{ candidates: AdmissionCandidate[] }>("admission-workflow/2027/overview") : Promise.resolve(null),
+      access.admissions ? operation<FamilySummaryPage>("admission-workflow/families/page?page=1&pageSize=1&includeGradeOptions=false") : Promise.resolve(null),
+    ]);
+    const problems: string[] = [];
+    if (access.enrollments) {
+      if (enrollmentResult.status === "fulfilled") setEnrollments(enrollmentResult.value ?? []);
+      else problems.push(enrollmentResult.reason instanceof Error ? enrollmentResult.reason.message : "No se pudieron actualizar las inscripciones.");
+    }
+    if (access.admissions) {
+      if (candidatesResult.status === "fulfilled") setCandidates(candidatesResult.value?.candidates ?? []);
+      else problems.push(candidatesResult.reason instanceof Error ? candidatesResult.reason.message : "No se pudieron actualizar los alumnos.");
+      if (familiesResult.status === "fulfilled") setFamilyTotal(familiesResult.value?.total ?? 0);
+      else problems.push(familiesResult.reason instanceof Error ? familiesResult.reason.message : "No se pudieron actualizar las familias.");
+      setFamilyRefreshVersion((value) => value + 1);
     }
     setError(problems[0] ?? "");
   }, [access.admissions, access.enrollments]);
@@ -96,68 +152,77 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
   const refreshAdmissions = useCallback(async () => {
     if (refreshing) return;
     setRefreshing(true);
-    try { await reload(); }
+    try {
+      await reload();
+      if (queue === "contracts") await loadContracts();
+    }
     finally { setRefreshing(false); }
-  }, [refreshing, reload]);
+  }, [refreshing, reload, queue, loadContracts]);
 
   useEffect(() => { const timer = setTimeout(() => void reload(), 0); return () => clearTimeout(timer); }, [reload]);
   useEffect(() => {
-    if (!version || (area && area !== "ENROLLMENTS")) return;
-    const timer = setTimeout(() => void reload(), 0);
+    if (queue !== "contracts" || contractsLoaded || !access.admissions) return;
+    void loadContracts();
+  }, [queue, contractsLoaded, access.admissions, loadContracts]);
+  useEffect(() => {
+    if (!version || (area && area !== "ENROLLMENTS" && !(area === "ADMISSIONS" && queue === "contracts"))) return;
+    const timer = setTimeout(() => {
+      if (area === "ENROLLMENTS") void refreshEnrollmentData();
+      else {
+        void reload();
+        if (queue === "contracts") void loadContracts();
+      }
+    }, 120);
     return () => clearTimeout(timer);
-  }, [version, area, reload]);
+  }, [version, area, reload, refreshEnrollmentData, queue, loadContracts]);
 
   const allCandidates = useMemo(() => {
-    const familyStudentMap = new Map<number, { familyId: number; familyName: string; currentGrade: string | null }>();
-    for (const family of families) {
-      for (const student of family.activeStudents ?? []) {
-        if (student.studentId != null) familyStudentMap.set(student.studentId, { familyId: family.id, familyName: family.name, currentGrade: student.currentGrade });
-      }
-    }
     const existing = new Set(candidates.map((candidate) => candidate.id));
-    const linkedCandidates = candidates.map((candidate) => {
-      const linkedFamily = familyStudentMap.get(candidate.id);
-      return {
-        ...candidate,
-        familyId: candidate.familyId ?? linkedFamily?.familyId ?? null,
-        familyName: candidate.familyName ?? linkedFamily?.familyName ?? null,
-        currentGrade: candidate.currentGrade ?? linkedFamily?.currentGrade ?? null,
-      };
-    });
+    const linkedCandidates = candidates;
     const registrations = enrollments.filter((item) => !existing.has(item.studentId)).map((item): AdmissionCandidate => ({
       id: item.studentId,
       uuid: item.studentUuid,
       firstName: item.studentFirstName || "Alumno",
       lastName: item.studentLastName || "",
-      currentGrade: familyStudentMap.get(item.studentId)?.currentGrade ?? null,
+      currentGrade: null,
       proposedGrade: item.gradeName,
-      familyId: familyStudentMap.get(item.studentId)?.familyId ?? null,
-      familyName: familyStudentMap.get(item.studentId)?.familyName ?? (String(item.profile?.familyName || "") || null),
+      familyId: null,
+      familyName: String(item.profile?.familyName || "") || null,
       familyReviewStatus: null,
       representativeName: String(item.profile?.representativeName || "") || null,
       historicalContracts: 0,
       status: "REVIEW",
     }));
     return [...linkedCandidates, ...registrations];
-  }, [candidates, enrollments, families]);
+  }, [candidates, enrollments]);
 
   const enrollmentByStudent = useMemo(() => new Map(enrollments.map((item) => [item.studentId, item])), [enrollments]);
   const enrollmentStatuses = useMemo(() => new Map(enrollments.map((item) => [item.studentId, item.status])), [enrollments]);
   const enrolledIds = useMemo(() => new Set(enrollments.filter((item) => item.status === "ACTIVO").map((item) => item.studentId)), [enrollments]);
+  const candidatesByFamilyId = useMemo(() => {
+    const grouped = new Map<number, AdmissionCandidate[]>();
+    for (const candidate of allCandidates) {
+      if (candidate.familyId == null) continue;
+      const children = grouped.get(candidate.familyId) ?? [];
+      children.push(candidate);
+      grouped.set(candidate.familyId, children);
+    }
+    return grouped;
+  }, [allCandidates]);
   const familyCards = useMemo(() => families.map((family) => {
-    const children = allCandidates.filter((candidate) => candidate.familyId === family.id);
+    const children = candidatesByFamilyId.get(family.id) ?? [];
     const enrolled = children.filter((child) => enrolledIds.has(child.id)).length;
     return { ...family, children, enrolled, pending: children.length - enrolled };
-  }), [families, allCandidates, enrolledIds]);
+  }), [families, candidatesByFamilyId, enrolledIds]);
   const newStudents = allCandidates.filter((candidate) => candidate.historicalContracts === 0);
   const returningStudents = allCandidates.filter((candidate) => candidate.historicalContracts > 0);
   const pendingSteps = enrollments.filter((item) => item.status === "PENDIENTE_FIRMA" || item.status === "PENDIENTE_PAGO").length;
   const unassigned = allCandidates.filter((candidate) => candidate.familyId == null);
   const selectedFamily = familyDetail?.id === familyId ? familyDetail : null;
-  const visibleFamilies = familyCards.filter((family) => `${family.name} ${family.children.map((child) => `${child.firstName} ${child.lastName}`).join(" ")}`.toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es")));
+  const familyPageCount = Math.max(1, Math.ceil(familyTotal / FAMILY_PAGE_SIZE));
+  const visibleFamilies = familyCards;
   const grades = [...new Set([
     ...allCandidates.map((candidate) => candidate.currentGrade),
-    ...families.flatMap((family) => family.activeStudents?.map((student) => student.currentGrade) ?? []),
     ...bootstrap?.gradeLevels.map((grade) => grade.name) ?? [],
   ].filter((grade): grade is string => Boolean(grade?.trim())))].sort((a, b) => a.localeCompare(b, "es"));
   const reportRows = useMemo(() => allCandidates.filter((candidate) => candidate.status !== "GRADUATED").map((candidate) => {
@@ -219,7 +284,7 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
     window.open(`/inscripciones/nueva${query ? `?${query}` : ""}`, "_blank", "noopener,noreferrer");
   }
 
-  function openChild(candidate: AdmissionCandidate | null, profile: Record<string, string | number | null | undefined>) {
+  function openChild(candidate: AdmissionCandidate | null, profile: EnrollmentProfile) {
     if (!access.enrollments) return;
     const params = new URLSearchParams();
     if (familyId) params.set("familyId", String(familyId));
@@ -299,7 +364,7 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
           </section>
 
           <div className="station-stats">
-            <div><span className="stat-icon blue"><AppIcon name="users" /></span><span><small>Familias atendidas</small><strong>{families.length}</strong></span></div>
+            <div><span className="stat-icon blue"><AppIcon name="users" /></span><span><small>Familias atendidas</small><strong>{familyTotal}</strong></span></div>
             <div><span className="stat-icon coral"><AppIcon name="plus" /></span><span><small>Alumnos nuevos</small><strong>{newStudents.length}</strong></span></div>
             <div><span className="stat-icon violet"><AppIcon name="users" /></span><span><small>Reinscripciones</small><strong>{returningStudents.length}</strong></span></div>
             <div><span className="stat-icon mint"><AppIcon name="clock" /></span><span><small>Firma o pago pendiente</small><strong>{pendingSteps}</strong></span></div>
@@ -312,14 +377,14 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
             <div className="section-heading"><div><span className="eyebrow">BANDEJA DE TRABAJO</span><h2>¿Qué proceso vas a atender?</h2></div>
               {queue !== "home" && queue !== "report" && <div className="queue-tools">
                 {(queue === "new" || queue === "returning") && <label className="queue-status-filter"><span>Estado de inscripción</span><select value={enrollmentStatusFilter} onChange={(event) => setEnrollmentStatusFilter(event.target.value as EnrollmentStatusFilter)}>{enrollmentStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
-                <label className="search-field queue-search"><AppIcon name="search" size={19} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={queue === "contracts" ? "Alumno, representante o contrato" : "Buscar alumno o familia"} /></label>
+                <label className="search-field queue-search"><AppIcon name="search" size={19} /><input value={search} onChange={(event) => { setSearch(event.target.value); if (queue === "families") setFamilyPage(1); }} placeholder={queue === "contracts" ? "Alumno, representante o contrato" : "Buscar alumno o familia"} /></label>
               </div>}
             </div>
             <div className="large-tabs admissions-tabs" role="tablist" aria-label="Procesos de inscripción">
               <button role="tab" aria-selected={queue === "new"} onClick={() => { setQueue("new"); setSearch(""); }}>Alumnos nuevos <span>{newStudents.length}</span></button>
               <button role="tab" aria-selected={queue === "returning"} onClick={() => { setQueue("returning"); setSearch(""); }}>Reinscripción <span>{returningStudents.length}</span></button>
               <button role="tab" aria-selected={queue === "home"} onClick={() => setQueue("home")}>Desde casa</button>
-              <button role="tab" aria-selected={queue === "families"} onClick={() => { setQueue("families"); setSearch(""); }}>Familias <span>{families.length}</span></button>
+              <button role="tab" aria-selected={queue === "families"} onClick={() => { setQueue("families"); setSearch(""); setFamilyPage(1); }}>Familias <span>{familyTotal}</span></button>
               <button role="tab" aria-selected={queue === "contracts"} onClick={() => { setQueue("contracts"); setSearch(""); }}>Contratos <span>{contracts.length}</span></button>
               {access.isAdmin && <button role="tab" aria-selected={queue === "report"} onClick={() => { setQueue("report"); setSearch(""); }}>Seguimiento <span>{reportRows.length}</span></button>}
             </div>
@@ -327,7 +392,7 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
             {queue === "report" && access.isAdmin && <section className="enrollment-report" aria-label="Seguimiento de inscripciones 2027">
               <div className="enrollment-report-heading"><div><span className="eyebrow">ADMINISTRACIÓN · CICLO 2027</span><h3>Seguimiento de inscripciones</h3><p>Consulta por grado, tipo de ingreso y avance de inscripción.</p></div><button className="button button-primary" type="button" onClick={downloadAdmissionReport} disabled={visibleReportRows.length === 0}><AppIcon name="download" size={18} /> Descargar Excel</button></div>
               <div className="enrollment-report-stats"><article><small>Inscritos</small><strong>{activeEnrollmentCount}</strong></article><article><small>Nuevo ingreso inscrito</small><strong>{activeNewCount}</strong></article><article><small>Reinscripción inscrita</small><strong>{activeReturningCount}</strong></article><article><small>Pendiente de firma</small><strong>{reportRows.filter((row) => row.status === "PENDIENTE_FIRMA").length}</strong></article><article><small>Pendiente de pago</small><strong>{reportRows.filter((row) => row.status === "PENDIENTE_PAGO").length}</strong></article><article><small>Sin inscripción</small><strong>{noEnrollmentCount}</strong></article></div>
-              <div className="enrollment-report-filters"><label>Buscar<input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Alumno, familia o representante" /></label><label>Grado<select value={reportGradeFilter} onChange={(event) => setReportGradeFilter(event.target.value)}><option value="ALL">Todos los grados</option>{[...new Set(reportRows.map((row) => row.grade))].sort((a, b) => a.localeCompare(b, "es")).map((grade) => <option key={grade}>{grade}</option>)}</select></label><label>Ingreso<select value={reportTypeFilter} onChange={(event) => setReportTypeFilter(event.target.value)}><option value="ALL">Nuevo y reinscripción</option><option value="NEW">Nuevo ingreso</option><option value="REINSCRIPTION">Reinscripción</option></select></label><label>Estado<select value={reportStatusFilter} onChange={(event) => setReportStatusFilter(event.target.value)}>{enrollmentStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></div>
+              <div className="enrollment-report-filters"><label>Buscar<input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Alumno, familia o representante" /></label><label>Grado<select value={reportGradeFilter} onChange={(event) => setReportGradeFilter(event.target.value)}><option value="ALL">Todos los grados</option>{[...new Set(reportRows.map((row) => row.grade))].sort((a, b) => a.localeCompare(b, "es")).map((grade) => <option key={grade}>{grade}</option>)}</select></label><label>Ingreso<select value={reportTypeFilter} onChange={(event) => setReportTypeFilter(event.target.value)}><option value="ALL">Nuevo y reinscripción</option><option value="NEW">Nuevo ingreso</option><option value="REINSCRIPTION">Reinscripción</option></select></label><label>Estado<select value={reportStatusFilter} onChange={(event) => setReportStatusFilter(event.target.value as EnrollmentStatusFilter)}>{enrollmentStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></div>
               <div className="enrollment-report-table-wrap"><table className="enrollment-report-table"><thead><tr><th>Alumno</th><th>Familia</th><th>Ingreso</th><th>Grado 2027</th><th>Estado</th><th>Representante</th></tr></thead><tbody>{visibleReportRows.map(({ candidate, type, status, grade }) => <tr key={candidate.id}><td><strong>{candidate.firstName} {candidate.lastName}</strong></td><td>{candidate.familyName || "Sin familia vinculada"}</td><td><span className={`enrollment-report-type ${type === "NEW" ? "new" : "returning"}`}>{type === "NEW" ? "Nuevo ingreso" : "Reinscripción"}</span></td><td>{grade}</td><td><span className={`status-pill ${status === "ACTIVO" ? "success" : "waiting"}`}>{enrollmentLabel(status === "UNENROLLED" ? undefined : status)}</span></td><td>{candidate.representativeName || "—"}</td></tr>)}</tbody></table>{visibleReportRows.length === 0 && <div className="empty-state"><h3>No hay resultados para estos filtros</h3><p>Prueba con otro grado, tipo de ingreso o estado.</p></div>}</div>
               <div className="enrollment-report-footer"><span>{visibleReportRows.length} de {reportRows.length} alumnos</span><span>Los estados corresponden a las inscripciones guardadas en el ciclo 2027.</span></div>
             </section>}
@@ -354,16 +419,18 @@ export function AdmissionsWorkspace({ overview, initialFamilyId = null, access }
             </div>}
 
             {queue === "families" && <>
+              {familyLoading && <p className="muted" role="status">Cargando familias…</p>}
               <div className="family-card-grid">
                 {visibleFamilies.map((family) => <button className="family-card" type="button" key={family.id} onClick={() => void openFamily(family.id)}>
                   <span className="avatar blue">{family.name.slice(0, 2).toLocaleUpperCase("es")}</span><span className="family-card-copy"><strong>{family.name}</strong><small>{family.children.length} alumno{family.children.length === 1 ? "" : "s"}</small><em>{family.children.map((child) => child.firstName).join(", ") || "Sin alumnos todavía"}</em></span>
                   <span className={`status-pill ${family.pending ? "waiting" : "success"}`}>{family.pending ? `${family.pending} por revisar` : family.children.length ? "Completa" : "Sin alumnos"}</span><AppIcon name="arrow" size={18} />
                 </button>)}
               </div>
-              {visibleFamilies.length === 0 && <div className="empty-state"><h3>No hay familias que coincidan</h3></div>}
+              {!familyLoading && visibleFamilies.length === 0 && <div className="empty-state"><h3>No hay familias que coincidan</h3></div>}
+              {familyTotal > FAMILY_PAGE_SIZE && <div className="response-pagination"><button className="button button-soft" type="button" disabled={familyPage <= 1 || familyLoading} onClick={() => setFamilyPage((current) => Math.max(1, current - 1))}>← Anterior</button><span>Página {familyPage} de {familyPageCount}</span><button className="button button-soft" type="button" disabled={familyPage >= familyPageCount || familyLoading} onClick={() => setFamilyPage((current) => Math.min(familyPageCount, current + 1))}>Siguiente →</button></div>}
             </>}
 
-            {queue === "contracts" && <LegacyContractsPanel contracts={contracts} search={search} openableStudentIds={new Set(allCandidates.map((item) => item.id))} onOpenStudent={(id) => {
+            {queue === "contracts" && <LegacyContractsPanel contracts={contracts} loading={contractsLoading} search={search} openableStudentIds={new Set(allCandidates.map((item) => item.id))} onOpenStudent={(id) => {
               const candidate = allCandidates.find((item) => item.id === id);
               if (candidate?.familyId) void openFamily(candidate.familyId);
             }} />}

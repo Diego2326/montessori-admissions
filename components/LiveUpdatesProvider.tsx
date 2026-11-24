@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { invalidateOperationCache } from "@/lib/operations/client";
 
 type LiveState = { version: number; area: string | null; connected: boolean };
 const LiveContext = createContext<LiveState>({ version: 0, area: null, connected: false });
@@ -14,7 +15,12 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
     let socket: WebSocket | null = null;
     let reconnect: ReturnType<typeof setTimeout> | null = null;
     let retry = 1000;
-    const fallback = setInterval(() => { if (active) setState((old) => ({ ...old, version: old.version + 1, area: null })); }, 45000);
+    const fallback = setInterval(() => {
+      if (active && socket?.readyState !== WebSocket.OPEN) {
+        invalidateOperationCache();
+        setState((old) => ({ ...old, version: old.version + 1, area: null }));
+      }
+    }, 45000);
     async function connect() {
       try {
         const response = await fetch("/api/live-ticket", { cache: "no-store" });
@@ -26,7 +32,7 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
         socket.onmessage = (message) => {
           try {
             const event = JSON.parse(message.data) as { area: string };
-            if (active && event.area) setState((old) => ({ version: old.version + 1, area: event.area, connected: true }));
+            if (active && event.area) { invalidateOperationCache(); setState((old) => ({ version: old.version + 1, area: event.area, connected: true })); }
           } catch { /* ignore unknown event */ }
         };
         socket.onclose = () => {
