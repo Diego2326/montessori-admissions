@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdmissionStartMenu } from "@/features/admissions/AdmissionStartMenu";
-import { EnrollmentStatsDashboard } from "@/features/admissions/EnrollmentStatsDashboard";
 import { GradeProgressionTables } from "@/features/admissions/GradeProgressionTables";
 import { getAdmissionsOverview } from "@/lib/admissions/repository";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
@@ -61,7 +60,6 @@ export default async function Home() {
           <h1 id="admissions-title">Inscripciones</h1>
           <AdmissionStartMenu />
         </section>
-        {access.isAdmin && <EnrollmentStatsDashboard />}
         <GradeProgressionTables initialCandidates={candidates} initialError={initialError} />
       </main>
     </>
