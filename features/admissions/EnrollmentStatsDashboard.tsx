@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { operation } from "@/lib/operations/client";
-import { downloadWorkbookSheets, type WorkbookSheet } from "@/lib/admissions/xlsx";
+import { downloadWorkbookSheets, type WorkbookChart, type WorkbookSheet } from "@/lib/admissions/xlsx";
 import type { AdmissionCandidate } from "@/lib/admissions/types";
 import type { Enrollment, PreEnrollmentSubmission, PreEnrollmentSubmissionPage } from "@/lib/operations/types";
 
@@ -246,6 +246,25 @@ export function EnrollmentStatsDashboard() {
   function exportWorkbook() {
     const period = `${dateFrom || "Inicio"} — ${dateTo || "Sin límite"}`;
     const signedCount = periodSignatures.length;
+    const activitySheetRows = [[activityGranularity === "week" ? "Semana desde" : "Fecha", "Formularios", "Firmas", "Actividad total"], ...activityRows.map((row) => [row.key, row.responses, row.signatures, row.responses + row.signatures])];
+    const gradeSheetRows = [["Grado", "Total", "Inscritos", "Pendiente firma", "Pendiente pago", "Sin inscripción", "Formularios del periodo", "Firmas del periodo"], ...gradeRows.map((row) => [row.grade, row.total, row.active, row.signature, row.payment, row.noEnrollment, row.responses, row.signed])];
+    const typeSheetRows = [["Tipo de ingreso", "Total", "Inscritos", "Pendiente firma", "Pendiente pago", "Sin inscripción", "Avance (%)"], ...typeRows.map((row) => [row.label, row.total, row.active, row.signature, row.payment, row.noEnrollment, row.completion])];
+    const metricColors = ["327A5C", "173F8A", "D6A446", "A65B42", "82948B"];
+    const activityCharts: WorkbookChart[] = activityRows.length ? [{
+      type: "line", title: `Actividad ${activityGranularity === "week" ? "semanal" : "diaria"} · ciclo 2027`, categoryColumn: 0,
+      series: [{ nameColumn: 1, valuesColumn: 1, color: metricColors[0] }, { nameColumn: 2, valuesColumn: 2, color: metricColors[2] }],
+      position: { fromColumn: 5, fromRow: 1, toColumn: 14, toRow: 19 },
+    }] : [];
+    const gradeCharts: WorkbookChart[] = gradeRows.length ? [{
+      type: "bar", title: "Inscripciones por grado y estado", categoryColumn: 0,
+      series: [1, 2, 3, 4, 5].map((column, index) => ({ nameColumn: column, valuesColumn: column, color: metricColors[index] })),
+      position: { fromColumn: 9, fromRow: 1, toColumn: 19, toRow: 20 },
+    }] : [];
+    const typeCharts: WorkbookChart[] = typeRows.length ? [{
+      type: "bar", title: "Estado por tipo de ingreso", categoryColumn: 0,
+      series: [1, 2, 3, 4, 5].map((column, index) => ({ nameColumn: column, valuesColumn: column, color: metricColors[index] })),
+      position: { fromColumn: 8, fromRow: 1, toColumn: 18, toRow: 18 },
+    }] : [];
     const reportSheets: WorkbookSheet[] = [
       { name: "Resumen", rows: [
         ["REPORTE DE INSCRIPCIONES · CICLO 2027", "Colegio Bilingüe Montessori Zacapa"], ["Periodo de actividad", period], ["Generado", new Date().toLocaleString("es-GT")], [],
@@ -254,9 +273,9 @@ export function EnrollmentStatsDashboard() {
         ["Formularios recibidos en el periodo", periodResponses.length], ["Contratos firmados en el periodo", signedCount],
         ["Agrupación temporal de actividad", activityGranularity === "week" ? "Por semana" : "Por día"],
       ] },
-      { name: "Actividad temporal", rows: [[activityGranularity === "week" ? "Semana desde" : "Fecha", "Formularios", "Firmas", "Actividad"], ...activityRows.map((row) => [row.key, row.responses, row.signatures, row.responses + row.signatures])] },
-      { name: "Por grado", rows: [["Grado", "Alumnos", "Inscritos", "Pendiente firma", "Pendiente pago", "Sin inscripción", "Formularios del periodo", "Firmas del periodo"], ...gradeRows.map((row) => [row.grade, row.total, row.active, row.signature, row.payment, row.noEnrollment, row.responses, row.signed])] },
-      { name: "Por tipo", rows: [["Tipo de ingreso", "Total", "Inscritos", "Pendiente firma", "Pendiente pago", "Sin inscripción", "Avance (%)"], ...typeRows.map((row) => [row.label, row.total, row.active, row.signature, row.payment, row.noEnrollment, row.completion])] },
+      { name: "Actividad temporal", rows: activitySheetRows, charts: activityCharts },
+      { name: "Por grado", rows: gradeSheetRows, charts: gradeCharts },
+      { name: "Por tipo", rows: typeSheetRows, charts: typeCharts },
       { name: "Inscripciones", rows: [["Alumno", "Familia", "Tipo de ingreso", "Grado 2027", "Sección", "Estado", "Contrato firmado", "Representante", "ID alumno", "ID inscripción"], ...enrollmentRows.map(({ item, candidate, type }) => [`${item.studentFirstName ?? ""} ${item.studentLastName ?? ""}`.trim(), item.profile?.familyName ?? candidate?.familyName ?? "", typeLabel(type), item.gradeName ?? "Grado pendiente", item.section ?? "", statusLabel(item.status), String(item.profile?.contractSignedAt ?? ""), candidate?.representativeName ?? item.profile?.representativeName ?? "", item.studentId, item.id])] },
       { name: "Respuestas", rows: [["Fecha y hora", "Familia", "Respondió", "Decisión", "Alumnos seleccionados", "Grados"], ...periodResponses.map((item) => [item.submittedAt, item.familyName, item.recipientName, item.wantsEnroll ? "Continuará" : "No continuará", item.students.filter((student) => student.selected).map((student) => `${student.firstName} ${student.lastName}`.trim()).join("; "), item.students.filter((student) => student.selected).map((student) => student.currentGrade ?? "Grado pendiente").join("; ")])] },
       { name: "Cronología", rows: [["Fecha", "Evento", "Alumno(s)", "Familia", "Grado", "Detalle"], ...events.map((event) => [event.date, event.event, event.student, event.family, event.grade, event.detail])] },
