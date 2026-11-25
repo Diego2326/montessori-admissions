@@ -79,12 +79,23 @@ const typeLabel = (type: string) => type === "REINSCRIPTION" ? "Reinscripción" 
 async function loadEnrollments() {
   const rows: Enrollment[] = [];
   let offset = 0;
-  while (true) {
+  const seen = new Set<string>();
+  for (let page = 0; page < 1000; page++) {
     const batch = await operation<Enrollment[]>(`enrollments?schoolYear=2027&summary=true&limit=200&offset=${offset}`);
-    rows.push(...batch);
+    const fresh = batch.filter((enrollment) => {
+      const id = String(enrollment.id);
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    rows.push(...fresh);
     if (batch.length < 200) return rows;
+    // Older API deployments ignore limit/offset and return the same list.
+    // Stop once a page adds no new records instead of looping forever.
+    if (fresh.length === 0) return rows;
     offset += batch.length;
   }
+  throw new Error("La API no completó la paginación de inscripciones.");
 }
 
 async function loadResponses() {
