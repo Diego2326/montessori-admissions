@@ -16,6 +16,7 @@ type EntryType = "REINSCRIPTION" | "NEW_INCOME";
 type EmergencyContact = { name: string; phone: string; alternatePhone: string };
 type InsuranceSelection = "SCHOOL" | "OTHER" | "";
 type StudentDraft = { key: string; studentId?: number; studentUuid?: string; historicalIntakeId?: number; firstName: string; lastName: string; currentGrade: string; gradeId: number; birthDate: string; gender: "BOY" | "GIRL" | ""; studentDpi: string; phone: string; phoneCountryCode?: string; insuranceSelection: InsuranceSelection; otherInsuranceName: string; imported: boolean; enroll: boolean; alreadyEnrolled?: boolean; newFamilyStudent?: boolean };
+type FamilyRosterEntry = { candidate: AdmissionCandidate; enrollment: Enrollment | null };
 type HistoricalIntake = { id: number; sourceRowId: number; schoolYear: number; firstName: string; lastName: string; birthDate: string | null; intakeDocumentNumber: string | null; sourceGrade: string | null; motherName: string | null; motherWorkplace: string | null; motherMobile: string | null; motherDpi: string | null; fatherName: string | null; fatherOccupation: string | null; fatherWorkplace: string | null; fatherMobile: string | null; address: string | null; city: string | null; otherContact: string | null; contactMobile: string | null; attendedBy: string | null; matchedStudentId: number | null };
 const publicDocumentTypeOptions = [{ value: "DPI", label: "DPI" }, { value: "PASAPORTE", label: "Pasaporte" }] as const;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -190,6 +191,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
   const [familyId, setFamilyId] = useState<number | null>(initialFamilyId);
   const [familyName, setFamilyName] = useState("");
   const [editingEnrollment, setEditingEnrollment] = useState<Enrollment | null>(null);
+  const [familyRoster, setFamilyRoster] = useState<FamilyRosterEntry[]>([]);
   const [editingLoadComplete, setEditingLoadComplete] = useState(initialEnrollmentId == null);
   const [profile, setProfile] = useState<EnrollmentProfile>({ submissionDate: localDate() });
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([{ name: "", phone: "", alternatePhone: "" }]);
@@ -290,6 +292,20 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
           imported: true,
           enroll: true,
         }]);
+        const familyCandidates = overview.candidates.filter((item) => item.familyId === initialFamilyId);
+        if (candidate && !familyCandidates.some((item) => item.id === candidate.id)) familyCandidates.unshift(candidate);
+        setFamilyRoster(familyCandidates.map((item) => ({ candidate: item, enrollment: item.id === existing.studentId ? existing : null })));
+        void enrollmentSummariesForStudents(familyCandidates.map((item) => item.id)).then((history) => {
+          if (!active) return;
+          setFamilyRoster(familyCandidates.map((item) => ({
+            candidate: item,
+            enrollment: item.id === existing.studentId
+              ? existing
+              : history.filter((enrollment) => enrollment.studentId === item.id && enrollment.schoolYear === 2027).sort((left, right) => right.id - left.id)[0] ?? null,
+          })));
+        }).catch(() => {
+          // Keep the family roster visible even when enrollment status cannot be refreshed.
+        });
         setDraft({ key: "student-draft", firstName: "", lastName: "", currentGrade: "", gradeId: 0, birthDate: "", gender: "", studentDpi: "", phone: "", phoneCountryCode: "GT", insuranceSelection: "", otherInsuranceName: "", imported: false, enroll: true });
         setSelectedCandidateId(existing.studentId);
         setSearch("");
@@ -904,6 +920,20 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
           <p>El teléfono celular del representante es obligatorio; los demás números son opcionales y deben escribirse como 1234-5678 si los ingresas.</p>
         </div>
 
+        {editingEnrollment && <section className="public-pre-family-roster" aria-label="Alumnos de esta familia">
+          <div><h3>Alumnos de esta familia</h3><p>Revisa todas las fichas familiares. Puedes editar cualquier inscripción de 2027 o agregar otro alumno al registro.</p></div>
+          <div className="public-pre-family-roster-list">
+            {familyRoster.map(({ candidate, enrollment }) => <article className={`public-pre-family-roster-row ${enrollment?.id === editingEnrollment.id ? "is-current" : ""}`} key={candidate.id}>
+              <div><strong>{candidate.firstName} {candidate.lastName}</strong><span>{candidate.currentGrade || enrollment?.gradeName || "Grado sin registrar"}</span></div>
+              <span className={`public-pre-family-roster-status ${enrollment ? "is-enrolled" : ""}`}>{enrollment ? `Inscrito 2027 · ${enrollment.status === "ACTIVO" ? "Activo" : enrollment.status === "PENDIENTE_FIRMA" ? "Pendiente de firma" : enrollment.status === "PENDIENTE_PAGO" ? "Pendiente de pago" : enrollment.status}` : "Sin inscripción 2027"}</span>
+              {enrollment && (!enrollment.profile?.contractSignedAt || isAdmin) && <button type="button" className="btn btn-secondary" disabled={enrollment.id === editingEnrollment.id} onClick={() => router.push(`/inscripciones/nueva?${new URLSearchParams({ familyId: String(familyId), studentId: String(candidate.id), enrollmentId: String(enrollment.id), mode: "reinscripcion" })}`)}>{enrollment.id === editingEnrollment.id ? "Editando" : "Editar datos"}</button>}
+              {enrollment?.profile?.contractSignedAt && !isAdmin && <span className="public-pre-family-roster-locked">Solo administración</span>}
+            </article>)}
+            {familyRoster.length === 0 && <p className="public-pre-form-note">No se encontraron otros alumnos vinculados a esta familia.</p>}
+          </div>
+          <button type="button" className="btn btn-secondary" onClick={() => router.push(`/inscripciones/nueva?${new URLSearchParams({ familyId: String(familyId), studentId: String(editingEnrollment.studentId), mode: "reinscripcion" })}`)}><AppIcon name="plus" size={17} /> Agregar otro alumno al registro</button>
+        </section>}
+
         {entryType === "NEW_INCOME" && <section className="public-pre-section" aria-label="Crear familia">
           <h3>Familia</h3>
           <p>Escribe los apellidos con los que identificarán a la familia.</p>
@@ -1016,7 +1046,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
         </section>
 
         <section className="public-pre-section public-pre-students-section">
-          <div><h3>{editingEnrollment ? "Alumno de esta familia" : entryType === "REINSCRIPTION" ? "Alumnos de esta familia" : "Alumnos nuevos"}</h3><p>{editingEnrollment ? "Edita la información del alumno que tiene el contrato pendiente de firma." : entryType === "REINSCRIPTION" ? "Se cargan los alumnos de la familia y la respuesta más reciente de preinscripción. Marca quién continuará en 2027 y agrega otro alumno nuevo a esta familia, si aplica." : "Agrega a cada alumno que ingresará en 2027 y selecciona su grado."}</p></div>
+          <div><h3>{editingEnrollment ? "Datos del alumno seleccionado" : entryType === "REINSCRIPTION" ? "Alumnos de esta familia" : "Alumnos nuevos"}</h3><p>{editingEnrollment ? "Actualiza la información de la ficha seleccionada arriba." : entryType === "REINSCRIPTION" ? "Se cargan los alumnos de la familia y la respuesta más reciente de preinscripción. Marca quién continuará en 2027 y agrega otro alumno nuevo a esta familia, si aplica." : "Agrega a cada alumno que ingresará en 2027 y selecciona su grado."}</p></div>
           {!editingEnrollment && entryType === "REINSCRIPTION" && familyId && !draft.newFamilyStudent && <button type="button" className="btn btn-secondary" onClick={startNewFamilyStudent}><AppIcon name="plus" size={17} /> Agregar alumno nuevo a esta familia</button>}
           {!editingEnrollment && entryType === "REINSCRIPTION" && !draft.studentId && !draft.newFamilyStudent && <div className="student-search-block">
             <label className="field-label public-pre-field"><span>Buscar alumno existente</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nombre, apellido o código escolar" /></label>

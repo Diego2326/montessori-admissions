@@ -210,6 +210,18 @@ body { background: var(--bg); }
 .admission-public-replica .public-pre-emergency-contact { display: grid; justify-items: start; gap: 10px; padding: 14px 0; border-bottom: 1px solid #e7ebf1; }
 .admission-public-replica .public-pre-students-section { display: grid; gap: 15px; }
 .admission-public-replica .public-pre-students-section > div > p { margin: 0; color: #748199; font-size: 13px; line-height: 1.6; }
+.admission-public-replica .public-pre-family-roster { display: grid; gap: 12px; padding: 18px; border: 1px solid #dce4ef; border-radius: 10px; background: #f8faff; }
+.admission-public-replica .public-pre-family-roster > div:first-child { display: grid; gap: 6px; }
+.admission-public-replica .public-pre-family-roster h3 { margin: 0; color: #173f8a; font-size: 16px; }
+.admission-public-replica .public-pre-family-roster-list { display: grid; gap: 8px; }
+.admission-public-replica .public-pre-family-roster-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #e4eaf3; border-radius: 8px; background: #fff; }
+.admission-public-replica .public-pre-family-roster-row.is-current { border-color: #8aa4cf; background: #f3f7fd; }
+.admission-public-replica .public-pre-family-roster-row > div { display: grid; flex: 1 1 auto; min-width: 0; gap: 3px; color: #173f8a; }
+.admission-public-replica .public-pre-family-roster-row > div > strong { overflow-wrap: anywhere; }
+.admission-public-replica .public-pre-family-roster-row > div > span { color: #748199; font-size: 11px; }
+.admission-public-replica .public-pre-family-roster-status { padding: 6px 9px; border-radius: 18px; background: #f0f2f5; color: #68758a; font-size: 10px; font-weight: 700; text-align: center; }
+.admission-public-replica .public-pre-family-roster-status.is-enrolled { background: #e9f4ef; color: #367560; }
+.admission-public-replica .public-pre-family-roster-locked { color: #748199; font-size: 11px; font-weight: 700; }
 .admission-public-replica .public-pre-empty { margin: 0; padding: 15px; border-radius: 8px; background: #fbfaf6; }
 .admission-public-replica .public-pre-student-list { display: grid; gap: 13px; }
 .admission-public-replica .public-pre-student { padding: 18px; border: 1px solid #e4e5e3; border-radius: 9px; background: #fbfaf7; }
@@ -259,6 +271,9 @@ body { background: var(--bg); }
 @media (max-width: 560px) {
   .admission-public-replica .public-pre-card { padding: 22px 18px; }
   .admission-public-replica .public-pre-fields { grid-template-columns: 1fr; gap: 14px; }
+  .admission-public-replica .public-pre-family-roster-row { align-items: flex-start; flex-wrap: wrap; }
+  .admission-public-replica .public-pre-family-roster-row > div { flex-basis: calc(100% - 10px); }
+  .admission-public-replica .public-pre-family-roster-status { text-align: left; }
   .admission-public-replica .public-pre-student-top { align-items: flex-start; flex-wrap: wrap; gap: 9px; }
   .admission-public-replica .public-pre-enrollment-choice { order: 3; }
   .admission-public-replica .public-pre-grade { max-width: 45%; padding: 7px 9px; font-size: 10px; }
