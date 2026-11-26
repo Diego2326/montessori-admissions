@@ -197,6 +197,7 @@ body { background: var(--bg); }
 .admission-public-replica .public-pre-guardian-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
 .admission-public-replica .public-pre-representative-choice { padding-bottom: 20px; }
 .admission-public-replica .public-pre-representative-choice > p { margin: -5px 0 14px; color: #748199; font-size: 13px; line-height: 1.55; }
+.admission-public-replica .public-pre-representative-choice > .public-pre-representative-help { margin: 14px 0 0; }
 .admission-public-replica .public-pre-representative-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .admission-public-replica .public-pre-representative-option { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 11px 13px; border: 1px solid #dfe3e8; border-radius: 8px; background: #fff; color: #31507e; font-size: 13px; cursor: pointer; }
 .admission-public-replica .public-pre-representative-option.is-selected { border-color: #8aa4cf; background: #f4f7fc; box-shadow: 0 0 0 2px rgb(23 63 138 / 5%); }
