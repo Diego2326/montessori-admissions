@@ -70,7 +70,7 @@ function selectedRepresentativeEmail(profile: FamilyIntake["profile"]) {
   return String(parentEmail || profile.representativeEmail || "").trim();
 }
 
-export function FamilyDataSheet({ familyId }: { familyId: number }) {
+export function FamilyDataSheet({ familyId, isAdmin = false }: { familyId: number; isAdmin?: boolean }) {
   const [family, setFamily] = useState<FamilyIntake | null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -440,8 +440,8 @@ export function FamilyDataSheet({ familyId }: { familyId: number }) {
                   <span className={`pre-enrollment-status ${status.className}`}>{status.label}</span>
                   <div className="family-sheet-child-actions">
                     {relatedDataLoaded && !enrollment && <Link href={`/inscripciones/reinscripcion/alumno/${child.id}`} onClick={(event) => void startReenrollment(event, child)}>Iniciar reinscripción</Link>}
-                    {enrollment && !enrollment.profile?.contractSignedAt && <Link href={`/inscripciones/nueva?${new URLSearchParams({ familyId: String(familyId), studentId: String(child.id), enrollmentId: String(enrollment.id), mode: "reinscripcion" })}`}>Editar datos</Link>}
-                    {enrollment?.profile?.contractSignedAt && <button type="button" className="is-locked" disabled title="El contrato ya fue firmado y la inscripción no se puede editar." aria-label={`Editar datos de ${child.firstName} ${child.lastName}: la inscripción ya fue firmada`}>Editar datos</button>}
+                    {enrollment && (!enrollment.profile?.contractSignedAt || isAdmin) && <Link href={`/inscripciones/nueva?${new URLSearchParams({ familyId: String(familyId), studentId: String(child.id), enrollmentId: String(enrollment.id), mode: "reinscripcion" })}`}>{enrollment.profile?.contractSignedAt ? "Corregir datos (admin)" : "Editar datos"}</Link>}
+                    {enrollment?.profile?.contractSignedAt && !isAdmin && <button type="button" className="is-locked" disabled title="Solo un administrador puede corregir datos después de firmar el contrato." aria-label={`Editar datos de ${child.firstName} ${child.lastName}: solo administración puede corregirlos porque la inscripción ya fue firmada`}>Editar datos</button>}
                     {enrollment && <details className="family-sheet-downloads">
                       <summary>Descargas e impresiones</summary>
                       <div className="family-sheet-downloads-menu">

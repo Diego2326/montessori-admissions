@@ -14,11 +14,11 @@ export default async function FamilyDataSheetPage({ params }: { params: Promise<
   if (isDemoMode()) {
     const access = await getStaffAccess("", true);
     if (!access.workflow) redirect(firstStaffDestination(access));
-    return <FamilyDataSheet familyId={familyId} />;
+    return <FamilyDataSheet familyId={familyId} isAdmin={access.isAdmin} />;
   }
 
   const token = await requireAdmissionsSession();
   const access = await getStaffAccess(token);
   if (!access.workflow) redirect(firstStaffDestination(access));
-  return <FamilyDataSheet familyId={familyId} />;
+  return <FamilyDataSheet familyId={familyId} isAdmin={access.isAdmin} />;
 }

@@ -9,12 +9,16 @@ export const dynamic = "force-dynamic";
 type Search = Promise<{ familyId?: string; studentId?: string; enrollmentId?: string; mode?: string }>;
 
 export default async function NewAdmissionPage({ searchParams }: { searchParams: Search }) {
+  let isAdmin = false;
   if (!isDemoMode()) {
     const token = await requireAdmissionsSession();
     const access = await getStaffAccess(token);
     if (!access.admissions || !access.enrollments) redirect(firstStaffDestination(access));
+    isAdmin = access.isAdmin;
+  } else {
+    isAdmin = (await getStaffAccess("", true)).isAdmin;
   }
   const params = await searchParams;
   const mode = params.mode === "reinscription" ? "REINSCRIPTION" : "NEW_INCOME";
-  return <NewAdmissionFlow initialFamilyId={Number(params.familyId) || null} initialStudentId={Number(params.studentId) || null} initialEnrollmentId={Number(params.enrollmentId) || null} initialMode={mode} />;
+  return <NewAdmissionFlow initialFamilyId={Number(params.familyId) || null} initialStudentId={Number(params.studentId) || null} initialEnrollmentId={Number(params.enrollmentId) || null} initialMode={mode} isAdmin={isAdmin} />;
 }

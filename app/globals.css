@@ -945,12 +945,16 @@ body {
 .family-sheet-downloads-menu a,
 .family-intake-downloads-menu a {
   display: block;
+  min-height: auto;
   padding: 9px 10px;
+  border: 0;
   border-radius: 7px;
+  background: transparent;
   color: #173f8a;
   font-size: 12px;
   font-weight: 700;
   line-height: 1.3;
+  text-align: left;
   text-decoration: none;
 }
 .family-sheet-downloads-menu a:hover,

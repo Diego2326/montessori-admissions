@@ -180,7 +180,7 @@ function InsuranceChoiceFields({ nameKey, value, otherName, disabled = false, on
   </fieldset>;
 }
 
-export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = null, initialEnrollmentId = null, initialMode = null }: { initialFamilyId?: number | null; initialStudentId?: number | null; initialEnrollmentId?: number | null; initialMode?: EntryType | null }) {
+export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = null, initialEnrollmentId = null, initialMode = null, isAdmin = false }: { initialFamilyId?: number | null; initialStudentId?: number | null; initialEnrollmentId?: number | null; initialMode?: EntryType | null; isAdmin?: boolean }) {
   const router = useRouter();
   const entryType = initialEnrollmentId ? "REINSCRIPTION" : initialMode ?? "NEW_INCOME";
   const [candidates, setCandidates] = useState<AdmissionCandidate[]>([]);
@@ -246,8 +246,8 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
         const existing = await enrollmentPromise;
         if (!active) return;
         if (!existing) throw new Error("Enrollment was not returned");
-        if (existing.schoolYear !== 2027 || existing.profile?.contractSignedAt) {
-          setError(existing.profile?.contractSignedAt ? "El contrato ya fue firmado y esta inscripción no se puede editar." : "Sólo se pueden editar inscripciones de 2027.");
+        if (existing.schoolYear !== 2027 || (existing.profile?.contractSignedAt && !isAdmin)) {
+          setError(existing.profile?.contractSignedAt ? "Solo un administrador puede corregir una inscripción cuyo contrato ya fue firmado." : "Sólo se pueden editar inscripciones de 2027.");
           return;
         }
         if (!initialFamilyId || (initialStudentId && existing.studentId !== initialStudentId)) {
@@ -650,8 +650,8 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
       setError("Cada alumno que se inscribirá debe tener un seguro seleccionado. Si es de otra aseguradora, indica cuál.");
       return;
     }
-    if (editingEnrollment && (editingEnrollment.profile?.contractSignedAt || enrollmentStudents.length !== 1 || enrollmentStudents[0]?.studentId !== editingEnrollment.studentId)) {
-      setError("El contrato ya fue firmado o la inscripción no se puede editar.");
+    if (editingEnrollment && ((editingEnrollment.profile?.contractSignedAt && !isAdmin) || enrollmentStudents.length !== 1 || enrollmentStudents[0]?.studentId !== editingEnrollment.studentId)) {
+      setError("La inscripción no se puede editar con este acceso.");
       return;
     }
     if (!entryType || !enrollmentStudents.length || !year) { setError(entryType === "REINSCRIPTION" ? "Selecciona al menos un alumno que continuará en 2027." : "Agrega al menos un alumno y confirma el ciclo 2027."); return; }
@@ -770,8 +770,8 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
       if (editingEnrollment) {
         if (!familyId) throw new Error("No se encontró la familia vinculada a esta inscripción.");
         const latestEnrollment = await operation<Enrollment>(`enrollments/${editingEnrollment.id}`);
-        if (latestEnrollment.schoolYear !== 2027 || latestEnrollment.profile?.contractSignedAt) {
-          throw new Error("El contrato ya fue firmado o la inscripción cambió de estado. No se guardaron los cambios.");
+        if (latestEnrollment.schoolYear !== 2027 || (latestEnrollment.profile?.contractSignedAt && !isAdmin)) {
+          throw new Error("La inscripción cambió o requiere permisos de administrador. No se guardaron los cambios.");
         }
         const student = enrollmentStudents[0];
         const familyProfile = {
@@ -781,7 +781,10 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
         await save<FamilyIntake>(`admission-workflow/families/${familyId}`, { name: defaultName, profile: familyProfile }, "PUT");
         const existingProfile = latestEnrollment.profile ?? {};
         const studentCountry = countryCodes.find((item) => item.countryCode === student.phoneCountryCode);
-        await save<Enrollment>(`enrollments/${editingEnrollment.id}`, {
+        const correctionPath = latestEnrollment.profile?.contractSignedAt
+          ? `enrollments/${editingEnrollment.id}/admin-correction`
+          : `enrollments/${editingEnrollment.id}`;
+        await save<Enrollment>(correctionPath, {
           firstName: student.firstName,
           lastName: student.lastName,
           gradeId: student.gradeId,
@@ -892,7 +895,7 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
       <section className="public-boleta-site-hero public-pre-hero">
         <h1>{editingEnrollment ? <>Editar datos <em>2027.</em></> : entryType === "REINSCRIPTION" ? <>Reinscripción <em>2027.</em></> : <>Inscripción de alumnos nuevos <em>2027.</em></>}</h1>
         <p className="public-pre-greeting">{familyName ? `Familia ${familyName}` : "Nueva familia"}</p>
-        <p className="public-pre-intro">{editingEnrollment ? "Actualiza los datos familiares y del alumno. El contrato seguirá pendiente de firma." : entryType === "REINSCRIPTION" ? "Revisa la respuesta de preinscripción más reciente y confirma los datos de cada alumno para continuar el proceso del ciclo 2027." : "Completa los datos de la familia y del representante, y agrega a cada alumno nuevo con el grado que cursará en 2027."}</p>
+        <p className="public-pre-intro">{editingEnrollment ? editingEnrollment.profile?.contractSignedAt ? "Corrección administrativa del expediente de un alumno inscrito." : "Actualiza los datos familiares y del alumno. El contrato seguirá pendiente de firma." : entryType === "REINSCRIPTION" ? "Revisa la respuesta de preinscripción más reciente y confirma los datos de cada alumno para continuar el proceso del ciclo 2027." : "Completa los datos de la familia y del representante, y agrega a cada alumno nuevo con el grado que cursará en 2027."}</p>
       </section>
 
       <form className="public-boleta-card public-pre-card" onSubmit={submitForm} noValidate>
@@ -1059,8 +1062,8 @@ export function NewAdmissionFlow({ initialFamilyId = null, initialStudentId = nu
 
         {error && <p className="public-pre-error" role="alert">{error}</p>}
         <div className="public-pre-submit-area">
-          <p className="public-pre-privacy">{editingEnrollment ? "Los cambios se guardarán en la ficha de la familia y en esta inscripción pendiente de firma." : entryType === "REINSCRIPTION" ? "Al guardar, el colegio creará la inscripción del ciclo 2027 con los datos familiares y de cada alumno." : "Al guardar, el colegio creará la familia con estos apellidos y registrará la inscripción de cada alumno nuevo para 2027."}</p>
-          <button className="btn btn-primary public-pre-submit" type="submit" disabled={busy || !year}>{busy ? "Guardando…" : editingEnrollment ? "Guardar cambios" : "Guardar inscripción"}</button>
+          <p className="public-pre-privacy">{editingEnrollment?.profile?.contractSignedAt ? "La firma registrada y el estado de inscripción se conservarán. Si la corrección cambia información del contrato, vuelve a imprimirlo para entregarlo actualizado." : editingEnrollment ? "Los cambios se guardarán en la ficha de la familia y en esta inscripción pendiente de firma." : entryType === "REINSCRIPTION" ? "Al guardar, el colegio creará la inscripción del ciclo 2027 con los datos familiares y de cada alumno." : "Al guardar, el colegio creará la familia con estos apellidos y registrará la inscripción de cada alumno nuevo para 2027."}</p>
+          <button className="btn btn-primary public-pre-submit" type="submit" disabled={busy || !year}>{busy ? "Guardando…" : editingEnrollment?.profile?.contractSignedAt ? "Guardar corrección administrativa" : editingEnrollment ? "Guardar cambios" : "Guardar inscripción"}</button>
         </div>
       </form>
     </div>
